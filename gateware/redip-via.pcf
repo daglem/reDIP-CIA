@@ -1,4 +1,4 @@
-# MOS 6526 / 8520 / 8521 CIA
+# MOS 6522 VIA
 # Pin Constraints File for iCE5LP1K-SG48
 
 set_io -nowarn PA0  36
@@ -19,11 +19,11 @@ set_io -nowarn PB5  18
 set_io -nowarn PB6  17
 set_io -nowarn PB7  15
 
-set_io -nowarn PC   14
-set_io -nowarn TOD  13
+set_io -nowarn CB1  14
+set_io -nowarn CB2  13
 
-set_io -nowarn CNT  37
-set_io -nowarn SP   38
+set_io -nowarn CA1  37
+set_io -nowarn CA2  38
 set_io -nowarn RS0  42
 set_io -nowarn RS1  43
 set_io -nowarn RS2  39
@@ -40,7 +40,7 @@ set_io -nowarn DB6   2
 set_io -nowarn DB7  48
 
 set_io -nowarn PHI2 47
-set_io -nowarn FLAG  9
-set_io -nowarn CS   10
+set_io -nowarn CS1   9
+set_io -nowarn CS2  10
 set_io -nowarn R_W  11
 set_io -nowarn IRQ  12
