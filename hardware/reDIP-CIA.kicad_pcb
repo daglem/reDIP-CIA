@@ -20,7 +20,6 @@
 		(1 "In1.Cu" power)
 		(2 "In2.Cu" power)
 		(31 "B.Cu" mixed)
-		(34 "B.Paste" user)
 		(35 "F.Paste" user)
 		(36 "B.SilkS" user "B.Silkscreen")
 		(37 "F.SilkS" user "F.Silkscreen")
@@ -104,7 +103,7 @@
 		(allow_soldermask_bridges_in_footprints no)
 		(aux_axis_origin 98.73 149.53)
 		(pcbplotparams
-			(layerselection 0x00311fc_ffffffff)
+			(layerselection 0x00311f8_ffffffff)
 			(plot_on_all_layers_selection 0x0000000_00000000)
 			(disableapertmacros no)
 			(usegerberextensions no)
