@@ -1,6 +1,10 @@
 # MOS 6520 PIA
 # Pin Constraints File for iCE5LP1K-SG48
 
+# Pin 1 = VSS
+# Pin 20 = VCC
+
+# Pin 2 - 19
 set_io -nowarn PA0  36
 set_io -nowarn PA1  35
 set_io -nowarn PA2  34
@@ -22,6 +26,7 @@ set_io -nowarn PB7  15
 set_io -nowarn CB1  14
 set_io -nowarn CB2  13
 
+# Pin 40 - 21
 set_io -nowarn CA1  37
 set_io -nowarn CA2  38
 set_io -nowarn IRQA 42
@@ -30,14 +35,14 @@ set_io -nowarn RS0  39
 set_io -nowarn RS1  40
 set_io -nowarn RES  41
 
-set_io -nowarn DB0  44
-set_io -nowarn DB1  45
-set_io -nowarn DB2  46
-set_io -nowarn DB3   6
-set_io -nowarn DB4   4
-set_io -nowarn DB5   3
-set_io -nowarn DB6   2
-set_io -nowarn DB7  48
+set_io -nowarn D0  44
+set_io -nowarn D1  45
+set_io -nowarn D2  46
+set_io -nowarn D3   6
+set_io -nowarn D4   4
+set_io -nowarn D5   3
+set_io -nowarn D6   2
+set_io -nowarn D7  48
 
 set_io -nowarn PHI2 47
 set_io -nowarn CS1   9
