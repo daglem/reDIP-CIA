@@ -47,9 +47,10 @@ module cia_tod (
     logic       tod_det;    // TOD pad positive edge detector
     logic       tod_det_prev;
     logic [2:0] jc3;        // Three-bit Johnson counter dividing TOD input by 5 or 6,
-    logic [2:0] jc3_sh;     // generating a 100ms period clock from 50Hz or 60Hz
+    logic [2:0] jc3_next;   // generating a 100ms period clock from 50Hz or 60Hz
+    logic       jc3_o;      // Internal count bit before AND with ~tod_stop at tod_det low
+    logic       jc3_o_next;
     logic       ts;         // Counter output - tenths of seconds
-    logic       ts_sh;
     logic       ts_prev;
     logic       ts_tick;
     logic       tod_stop;   // Stop clock
@@ -95,9 +96,9 @@ module cia_tod (
         rd_hr    = rd && addr == 'hB && ~w_alarm;
 
         // Johnson counter dividing TOD input by 5 or 6.
-        jc3_sh = jc3 & { 3{ ~ts } };           // Reset
-        jc3_sh = { jc3_sh[1:0], ~jc3_sh[2] };  // Shift
-        ts_sh  = ~(((jc3_sh[2] ^ todin) | jc3_sh[1] | jc3_sh[0]) & ~tod_stop);  // Output
+        jc3_next   = jc3 & { 3{ jc3_o & ~tod_stop } };  // Reset
+        jc3_next   = { jc3_next[1:0], ~jc3_next[2] };   // Shift
+        jc3_o_next = (jc3_next[2] ^ todin) | jc3_next[1] | jc3_next[0];  // Count bit
 
         phi20_dn = phi20 & phi2_dn;
         ts_tick  = phi20_dn & ~ts_prev & ts;
@@ -179,13 +180,18 @@ module cia_tod (
 
     always_ff @(posedge clk) begin
         if (phi20_up) begin
-            if (tod_det_prev & ~tod_det) begin
-                jc3 <= jc3_sh;
-                ts  <= ts_sh;
+            if (~tod_det_prev & tod_det) begin
+                // Clock Johnson counter.
+                jc3   <= jc3_next;
+                jc3_o <= jc3_o_next;
             end
-
             tod_det_prev <= tod_det;
-            ts_prev      <= ts;
+
+            if (~tod_det) begin
+                // 10ths of second output.
+                ts <= ~(jc3_o & ~tod_stop);
+            end
+            ts_prev <= ts;
         end
 
         if (phi20_dn) begin
