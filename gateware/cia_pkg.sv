@@ -29,7 +29,7 @@ package cia;
     typedef enum logic [0:0] {
         MOS6526,
         MOS8521
-    } chip_t;
+    } model_t;
 
     typedef struct packed {
         reg8_t pra;

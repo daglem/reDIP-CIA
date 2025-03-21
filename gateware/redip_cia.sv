@@ -116,9 +116,9 @@ module redip_cia (
     /* verilator lint_off PINMISSING */
     cia_core cia_core (
 `ifdef MOS6526
-        .chip    (cia::MOS6526),
+        .model   (cia::MOS6526),
 `else
-        .chip    (cia::MOS8521),
+        .model   (cia::MOS8521),
 `endif
         .clk     (clk_24),
         .rst     (rst_24),

@@ -17,19 +17,19 @@
 `default_nettype none
 
 module cia_interrupt (
-    input  cia::chip_t chip,
-    input  logic       clk,
-    input  logic       phi2_dn,
-    input  logic       res,
-    input  logic       rd,
-    input  logic       we,
-    input  cia::reg4_t addr,
+    input  cia::model_t model,
+    input  logic        clk,
+    input  logic        phi2_dn,
+    input  logic        res,
+    input  logic        rd,
+    input  logic        we,
+    input  cia::reg4_t  addr,
     /* verilator lint_off UNUSEDSIGNAL */
-    input  cia::reg8_t data,
+    input  cia::reg8_t  data,
     /* verilator lint_on UNUSEDSIGNAL */
-    input  logic[4:0]  sources,
-    output cia::reg8_t regs,
-    output logic       irq_n
+    input  logic[4:0]   sources,
+    output cia::reg8_t  regs,
+    output logic        irq_n
     );
 
     logic [1:0] phi1;  // Extra synchronization steps for SR and RS latches
@@ -77,7 +77,7 @@ module cia_interrupt (
                 // an RS latch instead of an SR latch, causing flags to be lost
                 // when a read is made on the same cycle as an interrupt
                 // FIXME: Can this also cause interrupts to be lost below?
-                if (chip == cia::MOS6526 ? sources_prev[i] : sources[i]) begin
+                if (model == cia::MOS6526 ? sources_prev[i] : sources[i]) begin
                     flags[i] <= 1;
                 end else if (res | rd_flags) begin
                     flags[i] <= 0;

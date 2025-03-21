@@ -290,7 +290,7 @@ int main(int argc, char** argv, char** env) {
 
     auto core = new Vcia_core;
 
-    core->chip  = cia_model;
+    core->model = cia_model;
     core->clk   = 0;
     core->rst   = 0;
     core->bus_i = 0;

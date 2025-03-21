@@ -17,7 +17,7 @@
 `default_nettype none
 
 module cia_core (
-    input  cia::chip_t  chip,
+    input  cia::model_t model,
     input  logic        clk,
     input  logic        rst,
     input  cia::bus_i_t bus_i,
@@ -185,7 +185,7 @@ module cia_core (
 
     // Interrupt Control.
     cia_interrupt interrupt (
-        .chip    (chip),
+        .model   (model),
         .clk     (clk),
         .phi2_dn (phi2_dn),
         .res     (res),
