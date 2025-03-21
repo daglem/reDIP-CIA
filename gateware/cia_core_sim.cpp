@@ -24,7 +24,7 @@
 // Register/port/pin values:
 // * 0-F: Register address (R/W/I)
 // * PA, PB: Port input/output (R/W)
-// * SP, CNT, TOD, FLAG: Pin input (W)
+// * RES, SP, CNT, TOD, FLAG: Pin input (W)
 // * IRQ, SP, CNT, PC: Pin output (R)
 //
 // No processing is done for interrupts (I), however a line containing the ICR
@@ -56,8 +56,8 @@
 using namespace std;
 
 static bool to_stdout = false;
-static uint64_t tod_frequency = 50;
-static uint64_t tod_timestep = 1e12/tod_frequency/2;  // In picoseconds
+static uint64_t tod_frequency = 0; // In Hz
+static uint64_t tod_timestep = 0;  // In picoseconds
 static int cia_model = 1;  // MOS8521
 
 static struct option long_opts[] = {
@@ -80,10 +80,10 @@ static void parse_args(int argc, char** argv) {
         case 'f':
             try {
                 tod_frequency = stoll(val);
-                if (tod_frequency < 0 || tod_frequency > 1000000) {
+                if (tod_frequency < 1 || tod_frequency > 1000000) {
                     goto fail;
                 }
-                tod_timestep = tod_frequency > 0 ? 1e12/tod_frequency/2 : 0;
+                tod_timestep = 1e12/tod_frequency/2;
             } catch (exception const&) {
                 goto fail;
             }
@@ -107,7 +107,7 @@ Write waveform dump to "cia_sim.fst".)"
 Options:
   -c, --stdout                 Write log to standard output.
   -m, --cia-model {6526|8521}  Specify CIA model (default: 8521).
-  -f, --tod-frequency          Specify TOD frequency in Hz (0 - 1M, default: 50).
+  -f, --tod-frequency          Generate internal TOD signal (1 - 1M)Hz.
   -h, --help                   Display this information.
 )";
             exit(EXIT_SUCCESS);
@@ -206,6 +206,11 @@ static bool read_pin(Vcia_core* core, string& name, uint8_t& val) {
 string in_pins[] = { "SP", "CNT", "TOD", "FLAG" };
 
 static bool write_pin(Vcia_core* core, string& name, uint8_t val) {
+    if (name == "RES") {
+        core->bus_i = (core->bus_i & ~(1LL << 34)) | (uint64_t(val) << 34);
+        return true;
+    }
+
     int i = -1;
     for (auto pin_name : in_pins) {
         i++;
@@ -311,16 +316,20 @@ int main(int argc, char** argv, char** env) {
     }
 
     string line;
-    constexpr const char* fmt = "{} {} {} {:02X}";
+    constexpr const char* fmt = "{} {} {} {:02X}\n";
+    constexpr const char* fmt_pin = "{} {} {} {}\n";
     //constexpr string_view fmt{"{} {} {} {:02X}"};
 
     int skip_cycle = 0;
-    while (getline(cin, line)) {
+    int cycles_left = 0;
+    for (int lineno = 1; getline(cin, line); lineno++) {
         int cycles;
         string op, addr, val;
 
         istringstream lineio(line);
         lineio >> cycles >> op >> addr >> val >> ws;
+        cycles += cycles_left;
+        cycles_left = 0;
 
         int cycles_spent = 0;
         for (int i = 0; i < cycles; i++) {
@@ -331,7 +340,7 @@ int main(int argc, char** argv, char** env) {
             string icr;
             uint8_t flags;
             if (interrupt(core, icr, flags)) {
-                *out << format(fmt, i - cycles_spent, "I", icr, flags) << endl;
+                *out << format(fmt, i - cycles_spent, "I", icr, flags);
                 cycles_spent = i;
             }
         }
@@ -339,9 +348,10 @@ int main(int argc, char** argv, char** env) {
         skip_cycle = 0;
 
         if (op == "I") {
+            cycles_left = cycles;
             continue;
         } else if (op != "R" && op != "W") {
-            cerr << "Invalid operation: " << op << endl;
+            cerr << "Invalid operation in line " << lineno << ": " << op << endl;
             exit(EXIT_FAILURE);
         }
 
@@ -349,56 +359,60 @@ int main(int argc, char** argv, char** env) {
         try {
             data = stoi(val, nullptr, 16);
         } catch (exception const&) {
-            cerr << "Invalid value: " << val << endl;
+            cerr << "Invalid value in line " << lineno << ": " << val << endl;
             exit(EXIT_FAILURE);
         }
 
         try {
             uint8_t reg = stoi(addr, nullptr, 16);
             if (reg < 0x0 || reg > 0xF) {
-                cerr << "Invalid address: " << addr << endl;
+                cerr << "Invalid address in line " << lineno << ": " << addr << endl;
                 exit(EXIT_FAILURE);
             }
+            if (data < 0x0 || data > 0xFF) {
+                cerr << "Invalid value in line " << lineno << ": " << val << endl;
+                exit(EXIT_FAILURE);
+            }
+
             if (op == "R") {
-                uint8_t rval;
-                read(core, reg, rval);
-                if (rval != data) {
-                    line = format(fmt, cycles, op, addr, rval);
-                }
+                read(core, reg, data);
             } else if (op == "W") {
-                if (data < 0x0 || data > 0xFF) {
-                    cerr << "Invalid value: " << val << endl;
-                    exit(EXIT_FAILURE);
-                }
                 write(core, reg, data);
             }
 
-            // R/W steps one cycle; adjust for that in the next line.
+            line = format(fmt, cycles, op, addr, data);
+
+            // read()/write() steps one cycle; adjust for that in the next line.
             skip_cycle = 1;
         } catch (exception const&) {
             // Assume pin or port name.
+            bool port = addr == "PA" || addr == "PB";
+            uint8_t maxval = port ? 0xFF : 1;
+            if (data < 0 || data > maxval) {
+                cerr << "Invalid value in line " << lineno << ": " << val << endl;
+                exit(EXIT_FAILURE);
+            }
+
             if (op == "R") {
-                uint8_t rval;
-                if (!read_pin(core, addr, rval) && !read_port(core, addr, rval)) {
-                    cerr << "Invalid pin/port name: " << addr << endl;
+                if (!read_pin(core, addr, data) && !read_port(core, addr, data)) {
+                    cerr << "Invalid pin/port name in line " << lineno << ": " << addr << endl;
                     exit(EXIT_FAILURE);
-                }
-                if (rval != data) {
-                    line = format(fmt, cycles, op, addr, rval);
                 }
             } else {
-                if (data < 0 || data > 1) {
-                    cerr << "Invalid value: " << val << endl;
-                    exit(EXIT_FAILURE);
-                }
                 if (!write_pin(core, addr, data) && !write_port(core, addr, data)) {
-                    cerr << "Invalid pin name: " << addr << endl;
+                    cerr << "Invalid pin/port name in line " << lineno << ": " << addr << endl;
                     exit(EXIT_FAILURE);
                 }
             }
+
+            if (port) {
+                line = format(fmt, cycles, op, addr, data);
+            } else {
+                line = format(fmt_pin, cycles, op, addr, data);
+            }
         }
 
-        *out << line << endl;
+        *out << line;
     }
 
     core->final();
