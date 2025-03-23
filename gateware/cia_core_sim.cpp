@@ -226,12 +226,13 @@ static bool read_port(Vcia_core* core, string& name, uint8_t& val) {
     if (name == "PA") {
         i = 28;
     } else if (name == "PB") {
-        i = 12;
+        i = 20;
     } else {
         return false;
     }
 
-    val = (core->bus_o >> i) & 0xff;
+    // Only pull line down when DDR bit is set for output.
+    val = 0xff & ((core->bus_o >> i) | ~(core->bus_o >> (i - 16)));
     return true;
 }
 
@@ -337,15 +338,16 @@ int main(int argc, char** argv, char** env) {
                 phi2(core);
                 phi1(core);
             }
+            skip_cycle = 0;
+
             string icr;
             uint8_t flags;
             if (interrupt(core, icr, flags)) {
-                *out << format(fmt, i - cycles_spent, "I", icr, flags);
-                cycles_spent = i;
+                *out << format(fmt, i + 1 - cycles_spent, "I", icr, flags);
+                cycles_spent = i + 1;
             }
         }
         cycles = cycles - cycles_spent;
-        skip_cycle = 0;
 
         if (op == "I") {
             cycles_left = cycles;
