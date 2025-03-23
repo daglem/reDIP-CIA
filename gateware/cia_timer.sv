@@ -25,35 +25,44 @@ module cia_timer (
     input  cia::reg8_t  data,
     input  cia::tctrl_t ctrl,
     output cia::timer_t regs,
-    output logic        t_int,
+    output logic        ufl,
+    output logic        intr,
     output logic        pb
 );
 
     cia::reg16_t prescaler; // Timer latch
+    cia::reg16_t prescaler_next;
     cia::reg16_t counter;   // Timer counter
+    cia::reg16_t counter_next;
 
     logic hi_w_prev;        // Register write
     logic start_prev;       // Control register start
-    logic underflow;        // Timer underflow
     logic reload;           // Reload counter from latch
+    logic count_prev;
     logic toggle;           // Timer underflow toggle
     logic pulse;            // Timer underflow pulse
 
     always_comb begin
-        // Timer underflow when the timer is 0 and is about to count down.
-        underflow = ~|counter & ctrl.count;
+        prescaler_next = { hi_w ? data : prescaler[15:8], lo_w ? data : prescaler[7:0] };
+        counter_next = counter - { 15'b0, count_prev };
+
+        // Timer underflow when the timer reaches 0 while counting.
+        ufl = ~|counter_next & ctrl.count;
 
         // Load timer on timer underflow, force load, or write to timer
         // high byte while the timer is stopped.
-        reload = underflow | ctrl.force_load | (hi_w_prev & ~start_prev);
+        // In real CIA chips, res is also ORed in. We use a separate reset.
+        reload = ufl | ctrl.force_load | (hi_w_prev & ~ctrl.start);
 
         // Read registers.
         regs.lo = counter[ 7:0];
         regs.hi = counter[15:8];
 
+        // Timer interrupt.
+        intr = pulse;
+
         // Timer output, which may appear on PB6 / PB7.
-        t_int = pulse;
-        pb    = ctrl.outmode ? toggle : t_int;
+        pb = ~(ctrl.toggle ? toggle : pulse);
     end
 
     // Writes to timer latch.
@@ -66,18 +75,13 @@ module cia_timer (
         end else if (phi2_dn) begin
             // Store register value on the falling edge of PHI2.
             // In real CIA chips, writes are made while PHI2 is high.
-            if (lo_w) begin
-                prescaler[ 7:0] <= data;
-            end
-            if (hi_w) begin
-                prescaler[15:8] <= data;
-            end
+            prescaler <= prescaler_next;
 
             // Timer load or count.
             if (reload) begin
-                counter <= prescaler;
+                counter <= prescaler_next;
             end else begin
-                counter <= counter - { 15'b0, ctrl.count };
+                counter <= counter_next;
             end
         end
     end
@@ -88,13 +92,14 @@ module cia_timer (
                 toggle <= 1'b0;
             end else if (~start_prev & ctrl.start) begin
                 toggle <= 1'b1;
-            end else if (underflow) begin
+            end else if (ufl) begin
                 toggle <= ~toggle;
             end
 
             hi_w_prev  <= hi_w;
             start_prev <= ctrl.start;
-            pulse      <= underflow;
+            count_prev <= ctrl.count & ~reload;
+            pulse      <= ufl;
         end
     end
 endmodule

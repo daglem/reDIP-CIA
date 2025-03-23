@@ -16,8 +16,8 @@
 
 // Run "make sim" to create simulation executables.
 //
-// The simulation reads lines from stdin on the following format, each line
-// specifying a number of cycles to wait before further processing:
+// The simulation reads lines on the following format, each line specifying a
+// number of cycles to step before further processing:
 //
 // cycles R/W/I register/port/pin value
 //
@@ -31,14 +31,16 @@
 // register address and value is output for every interrupt, in order to
 // facilitate comparison with the input file.
 //
-// To run simulation with input from cia_gold.log and write a file to diff with
-// to cia_sim.log:
+// To run simulation on cia_gold.mosio, writing simulation output to diff with
+// to cia_sim.mosio:
 //
-// sim_log/cia_sim < cia_gold.log
+// sim_log/cia_sim < cia_gold.mosio  # Default output file is cia_sim.mosio
+// sim_log/cia_sim -i cia_gold.mosio -o cia_sim.mosio
 //
-// To write a waveform dump for GTKWave or Surfer to the file sid_sim.fst:
+// To write a waveform dump for GTKWave or Surfer to the file cia_core.fst,
+// and .mosio output to the default output file cia_sim.mosio:
 //
-// sim_trace/cia_sim < cia_gold.log
+// sim_trace/cia_sim < cia_gold.mosio
 //
 
 #include "Vcia_core.h"
@@ -55,13 +57,15 @@
 
 using namespace std;
 
-static bool to_stdout = false;
+static string input_filename;
+static string output_filename = "cia_sim.mosio";
 static uint64_t tod_frequency = 0; // In Hz
 static uint64_t tod_timestep = 0;  // In picoseconds
 static int cia_model = 1;  // MOS8521
 
 static struct option long_opts[] = {
-    { "stdout",        no_argument,       0, 'c' },
+    { "input",         required_argument, 0, 'i' },
+    { "output",        required_argument, 0, 'o' },
     { "tod-frequency", required_argument, 0, 'f' },
     { "cia-model",     required_argument, 0, 'm' },
     { "help",          no_argument,       0, 'h' },
@@ -71,11 +75,14 @@ static struct option long_opts[] = {
 static void parse_args(int argc, char** argv) {
     int opt;
     int opt_ix = -1;
-    while ((opt = getopt_long(argc, argv, "cf:m:h", long_opts, &opt_ix)) != -1) {
+    while ((opt = getopt_long(argc, argv, "i:o:f:m:h", long_opts, &opt_ix)) != -1) {
         string val = optarg ? optarg : "";
         switch (opt) {
-        case 'c':
-            to_stdout = true;
+        case 'i':
+            input_filename = val;
+            break;
+        case 'o':
+            output_filename = val;
             break;
         case 'f':
             try {
@@ -97,17 +104,18 @@ static void parse_args(int argc, char** argv) {
             cout << "Usage: " << argv[0] << " [verilator-options] [options]" << R"(
 Read lines of CIA communication (cycles R/W/I register/port/pin value)
 from standard input.
-Write a file to diff with to "cia_sim.log" (default) or to standard output.)"
+Write a file to diff with to "cia_sim.mosio" (default) or to specified file.)"
 #if VM_TRACE == 1
                  << R"(
-Write waveform dump to "cia_sim.fst".)"
+Write waveform dump to "cia_core.fst".)"
 #endif
                  << R"(
 
 Options:
-  -c, --stdout                 Write log to standard output.
+  -i, --input filename         Read from specified .mosio file.
+  -o, --output filename        Write to specified .mosio file.
   -m, --cia-model {6526|8521}  Specify CIA model (default: 8521).
-  -f, --tod-frequency          Generate internal TOD signal (1 - 1M)Hz.
+  -f, --tod-frequency Hz       Generate internal TOD signal (1 - 1M)Hz.
   -h, --help                   Display this information.
 )";
             exit(EXIT_SUCCESS);
@@ -158,7 +166,7 @@ static void clk(Vcia_core* core) {
     }
 }
 
-// In simulation an 8MHz clock is sufficient (4 cycles between PHI2 edges).
+// In simulation an 8MHz FPGA clock is sufficient (4 cycles between PHI2 edges).
 static void clk4(Vcia_core* core) {
     for (int i = 0; i < 4; i++) {
         clk(core);
@@ -215,6 +223,11 @@ static bool write_pin(Vcia_core* core, string& name, uint8_t val) {
     for (auto pin_name : in_pins) {
         i++;
         if (name != pin_name) continue;
+        if (name == "SP" || name == "CNT") {
+            // Read pulled down output back in.
+            int o = i + 1;
+            val = ((core->bus_o >> o) & 1) & val;
+        }
         core->bus_i = (core->bus_i & ~(1LL << i)) | (uint64_t(val) << i);
         return true;
     }
@@ -222,31 +235,36 @@ static bool write_pin(Vcia_core* core, string& name, uint8_t val) {
 }
 
 static bool read_port(Vcia_core* core, string& name, uint8_t& val) {
-    int i;
+    int o;
     if (name == "PA") {
-        i = 28;
+        o = 28;
     } else if (name == "PB") {
-        i = 20;
+        o = 20;
     } else {
         return false;
     }
 
     // Only pull line down when DDR bit is set for output.
-    val = 0xff & ((core->bus_o >> i) | ~(core->bus_o >> (i - 16)));
+    val = (core->bus_o >> o) | ~(core->bus_o >> (o - 16));
     return true;
 }
 
 static bool write_port(Vcia_core* core, string& name, uint8_t val) {
-    int i;
+    int i, o;
     if (name == "PA") {
         i = 12;
+        o = 28;
     } else if (name == "PB") {
         i = 4;
+        o = 20;
     } else {
         return false;
     }
 
-    core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(val) << i);
+    // Read output bits back in, other bits from input.
+    uint8_t ddr = core->bus_o >> (o - 16);
+    uint8_t in = ((core->bus_o >> o) & ddr) | (val & ~ddr);
+    core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(in) << i);
     return true;
 }
 
@@ -289,7 +307,7 @@ int main(int argc, char** argv, char** env) {
         return EXIT_FAILURE;
     }
 
-    if (isatty(fileno(stdin))) {
+    if (input_filename.empty() && isatty(fileno(stdin))) {
         cerr << argv[0] << ": standard input is a terminal." << endl;
         return EXIT_FAILURE;
     }
@@ -301,20 +319,16 @@ int main(int argc, char** argv, char** env) {
     core->rst   = 0;
     core->bus_i = 0;
     core->bus_i |= (0b111LL << 32);  // Release /RES, /CS and /W
+    core->bus_i |= 0b1011L; // Release /FLAG, CNT, and SP.
     // Reset
     core->rst = 1;
     phi2(core);
     phi1(core);
     core->rst = 0;
 
-    ostream* out;
-    ofstream fout;
-    if (to_stdout) {
-        out = &cout;
-    } else {
-        fout = ofstream("cia_sim.log");
-        out = &fout;
-    }
+    auto fin = input_filename.empty() ? ifstream() : ifstream(input_filename);
+    auto& in = input_filename.empty() ? cin : fin;
+    auto out = ofstream(output_filename);
 
     string line;
     constexpr const char* fmt = "{} {} {} {:02X}\n";
@@ -323,18 +337,16 @@ int main(int argc, char** argv, char** env) {
 
     int skip_cycle = 0;
     int cycles_left = 0;
-    for (int lineno = 1; getline(cin, line); lineno++) {
+    for (int lineno = 1; getline(in, line); lineno++) {
         int cycles;
         string op, addr, val;
 
         istringstream lineio(line);
         lineio >> cycles >> op >> addr >> val >> ws;
-        cycles += cycles_left;
-        cycles_left = 0;
 
         int cycles_spent = 0;
         for (int i = 0; i < cycles; i++) {
-            if (!skip_cycle || i > 0) {
+            if (!skip_cycle) {
                 phi2(core);
                 phi1(core);
             }
@@ -343,11 +355,11 @@ int main(int argc, char** argv, char** env) {
             string icr;
             uint8_t flags;
             if (interrupt(core, icr, flags)) {
-                *out << format(fmt, i + 1 - cycles_spent, "I", icr, flags);
+                out << format(fmt, i + 1 - cycles_spent, "I", icr, flags);
                 cycles_spent = i + 1;
             }
         }
-        cycles = cycles - cycles_spent;
+        cycles -= cycles_spent;
 
         if (op == "I") {
             cycles_left = cycles;
@@ -357,16 +369,21 @@ int main(int argc, char** argv, char** env) {
             exit(EXIT_FAILURE);
         }
 
-        uint8_t data;
-        try {
-            data = stoi(val, nullptr, 16);
-        } catch (exception const&) {
+        cycles += cycles_left;
+        cycles_left = 0;
+
+        uint8_t data{};
+        const char* last = val.data() + val.size();
+        auto [ptrd, ecd] = from_chars(val.data(), last, data, 16);
+        if (ecd != std::errc{} || ptrd != last) {
             cerr << "Invalid value in line " << lineno << ": " << val << endl;
             exit(EXIT_FAILURE);
         }
 
-        try {
-            uint8_t reg = stoi(addr, nullptr, 16);
+        uint8_t reg;
+        last = addr.data() + addr.size();
+        auto [ptra, eca] = from_chars(addr.data(), last, reg, 16);
+        if (eca == std::errc{} && ptra == last) {
             if (reg < 0x0 || reg > 0xF) {
                 cerr << "Invalid address in line " << lineno << ": " << addr << endl;
                 exit(EXIT_FAILURE);
@@ -386,7 +403,7 @@ int main(int argc, char** argv, char** env) {
 
             // read()/write() steps one cycle; adjust for that in the next line.
             skip_cycle = 1;
-        } catch (exception const&) {
+        } else {
             // Assume pin or port name.
             bool port = addr == "PA" || addr == "PB";
             uint8_t maxval = port ? 0xFF : 1;
@@ -414,8 +431,10 @@ int main(int argc, char** argv, char** env) {
             }
         }
 
-        *out << line;
+        out << line;
     }
+
+    out.close();
 
     core->final();
     delete core;

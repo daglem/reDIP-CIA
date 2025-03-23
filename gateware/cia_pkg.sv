@@ -121,10 +121,11 @@ package cia;
 
     // Timer control inputs.
     typedef struct packed {
-        logic start;
-        logic outmode;
-        logic force_load;
         logic count;
+        logic force_load;
+        logic one_shot;
+        logic toggle;
+        logic start;
     } tctrl_t;
 
     // Bus input signals.

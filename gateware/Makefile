@@ -43,7 +43,7 @@ prog: $(TOP).bin
 	iceprog $<
 
 sim:
-	verilator --Mdir sim_trace -Wno-CASEINCOMPLETE --timescale "1us/1ps" --trace-fst --trace-structs --trace-underscore --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
+	verilator --Mdir sim_trace -DVM_TRACE -Wno-CASEINCOMPLETE --timescale "1us/1ps" --trace-fst --trace-structs --trace-underscore --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
 	verilator --Mdir sim_log -Wno-CASEINCOMPLETE --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
 
 clean:

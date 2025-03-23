@@ -56,9 +56,6 @@ module cia_interrupt (
 
         if (phi2_dn) begin
             rd_flags <= rd && addr == 'hD;
-
-            // Delay interrupt sources for MOS6526.
-            sources_prev <= sources;
         end
 
         // Extra synchronization steps for SR and RS latches.
@@ -71,6 +68,9 @@ module cia_interrupt (
         end
 
         if (phi1 == 1) begin
+            // Delay interrupt sources for MOS6526.
+            sources_prev <= sources;
+
             for (int i = 0; i < 5; i++) begin
                 // SR latches setting interrupt source flags.
                 // FIXME: Some (all?) CIA chips have a bug where this works as

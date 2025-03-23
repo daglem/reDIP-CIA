@@ -39,21 +39,22 @@ module cia_tod (
     cia::tod_t  clatch;     // Latched clock
     logic       rlatch;     // Read latch
     logic       alarm_eq;   // TOD alarm
-    logic       alarm_eq_prev;
+    logic       alarm_eq_prev = 1;  // Initialize to 1 in case of short reset
     logic [1:0] jc2;        // Two-bit Johnson counter dividing PHI2 by 4
     logic       phi20;      // PHI2/4
     logic       phi20_up;
     logic       phi20_dn;
     logic       tod_det;    // TOD pad positive edge detector
     logic       tod_det_prev;
-    logic [2:0] jc3;        // Three-bit Johnson counter dividing TOD input by 5 or 6,
+    logic [2:0] jc3;        // Three-bit Johnson counter bit, dividing TOD input by 5 or 6,
     logic [2:0] jc3_next;   // generating a 100ms period clock from 50Hz or 60Hz
-    logic       jc3_o;      // Internal count bit before AND with ~tod_stop at tod_det low
+    logic       jc3_o;      // Internal counter output
     logic       jc3_o_next;
     logic       ts;         // Counter output - tenths of seconds
+    logic       ts_next;
     logic       ts_prev;
-    logic       ts_tick;
-    logic       tod_stop;   // Stop clock
+    logic       ts_cin;
+    logic       tod_start;  // Run clock
 
     // Address decode.
     cia::reg2_t addr_tod;
@@ -83,6 +84,10 @@ module cia_tod (
     logic       h12;
     logic       h12_next;
 
+    initial begin
+        clock.tod_hr.hl = 4'd1;  // CIA bug: Powerup to 01:00:00.0
+    end
+
     always_comb begin
         addr_tod = addr[1:0];
         we_tod   = we && addr[3:2] == 2'b10;
@@ -96,21 +101,25 @@ module cia_tod (
         rd_hr    = rd && addr == 'hB && ~w_alarm;
 
         // Johnson counter dividing TOD input by 5 or 6.
-        jc3_next   = jc3 & { 3{ jc3_o & ~tod_stop } };  // Reset
-        jc3_next   = { jc3_next[1:0], ~jc3_next[2] };   // Shift
-        jc3_o_next = (jc3_next[2] ^ todin) | jc3_next[1] | jc3_next[0];  // Count bit
+        jc3_next   = { jc3[1:0], ~jc3[2] };  // Shift
+        jc3_o_next = (jc3[1] ^ todin) | jc3[0] | ~jc3[2];  // Shift -> count bit
+        ts_next    = ~(jc3_o & tod_start);
+
+        alarm_eq = clock == alarm;
 
         phi20_dn = phi20 & phi2_dn;
-        ts_tick  = phi20_dn & ~ts_prev & ts;
+
+        // 10ths of second input.
+        ts_cin   = ~ts_prev & ts & phi20_dn;
     end
 
-    bcd_update #(9) ts_update (we_10ths, data[3:0], clock.tod_10ths.t, ts_tick, cnext.tod_10ths.t, ts_c);
-    bcd_update #(9) sl_update (we_sec,   data[3:0], clock.tod_sec.sl,  ts_c,    cnext.tod_sec.sl,  sl_c);
-    bcd_update #(5) sh_update (we_sec,   data[6:4], clock.tod_sec.sh,  sl_c,    cnext.tod_sec.sh,  sh_c);
-    bcd_update #(9) ml_update (we_min,   data[3:0], clock.tod_min.ml,  sh_c,    cnext.tod_min.ml,  ml_c);
-    bcd_update #(5) mh_update (we_min,   data[6:4], clock.tod_min.mh,  ml_c,    cnext.tod_min.mh,  mh_c);
-    bcd_update #(9) hl_update (we_hr ,   data[3:0], clock.tod_hr.hl,   mh_c,    cnext_tod_hr_hl,   hl_c);
-    bcd_update #(1) hh_update (we_hr,    data[4],   clock.tod_hr.hh,   hl_c,    cnext_tod_hr_hh,   hh_c);
+    bcd_update #(9) ts_update (we_10ths, data[3:0], clock.tod_10ths.t, ts_cin, cnext.tod_10ths.t, ts_c);
+    bcd_update #(9) sl_update (we_sec,   data[3:0], clock.tod_sec.sl,  ts_c,   cnext.tod_sec.sl,  sl_c);
+    bcd_update #(5) sh_update (we_sec,   data[6:4], clock.tod_sec.sh,  sl_c,   cnext.tod_sec.sh,  sh_c);
+    bcd_update #(9) ml_update (we_min,   data[3:0], clock.tod_min.ml,  sh_c,   cnext.tod_min.ml,  ml_c);
+    bcd_update #(5) mh_update (we_min,   data[6:4], clock.tod_min.mh,  ml_c,   cnext.tod_min.mh,  mh_c);
+    bcd_update #(9) hl_update (we_hr ,   data[3:0], clock.tod_hr.hl,   mh_c,   cnext_tod_hr_hl,   hl_c);
+    bcd_update #(1) hh_update (we_hr,    data[4],   clock.tod_hr.hh,   hl_c,   cnext_tod_hr_hh,   hh_c);
 
     always_comb begin
         // 12:59:59.9 -> 01:00:00.0
@@ -126,8 +135,6 @@ module cia_tod (
                 data[7] ^ h12_next :
                 clock.tod_hr.pm ^ (~h12 && h12_next);
 
-        alarm_eq = cnext == alarm;
-
         regs = rlatch ? clatch : clock;
     end
 
@@ -141,37 +148,15 @@ module cia_tod (
 
     always_ff @(posedge clk) begin
         if (res) begin
-            alarm    <= '0;
-            tod_stop <= 1;
+            alarm <= '0;
+            clock <= '0;
+            clock.tod_hr.hl <= 4'd1;  // CIA bug: Reset to 01:00:00.0
+            h12   <= 0;
         end else if (phi2_dn) begin
             if (we_tod & w_alarm) begin
                 alarm[{ ~addr_tod, 3'b000 } +: 8] <= data;
             end
 
-            // Stop clock on write to hours register, start on write to
-            // 10ths of seconds register.
-            if (we_hr) begin
-                tod_stop <= 1;
-            end else if (we_10ths) begin
-                tod_stop <= 0;
-            end
-
-            // Latch clock on read of hours register, read "on the fly"
-            // after read of 10ths of seconds register.
-            if (rd_hr) begin
-                clatch  <= clock;
-                rlatch  <= 1;
-            end else if (rd_10ths) begin
-                rlatch  <= 0;
-            end
-        end
-    end
-
-    always_ff @(posedge clk) begin
-        if (res) begin
-            clock <= '0;
-            h12   <= 0;
-        end else if (phi2_dn) begin
             // Update clock.
             clock <= cnext;
             h12   <= h12_next;
@@ -179,18 +164,48 @@ module cia_tod (
     end
 
     always_ff @(posedge clk) begin
-        if (phi20_up) begin
-            if (~tod_det_prev & tod_det) begin
-                // Clock Johnson counter.
-                jc3   <= jc3_next;
-                jc3_o <= jc3_o_next;
+        if (phi2_dn) begin
+            // Stop clock on write to hours register, start on write to
+            // 10ths of seconds register.
+            if (we_hr | res) begin
+                tod_start <= 0;
+            end else if (we_10ths) begin
+                tod_start <= 1;
             end
-            tod_det_prev <= tod_det;
 
-            if (~tod_det) begin
-                // 10ths of second output.
-                ts <= ~(jc3_o & ~tod_stop);
+            // Latch clock on read of hours register, read "on the fly"
+            // after read of 10ths of seconds register.
+            if (rd_10ths | res) begin
+                rlatch  <= 0;
+            end else if (rd_hr) begin
+                clatch  <= clock;
+                rlatch  <= 1;
             end
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        if (~tod_det_prev) begin
+            if (~tod_det) begin
+                if (ts_next) begin
+                    // Reset counter bits.
+                    jc3   <= '0;
+                    jc3_o <= 0;
+                end
+            end else begin // tod_det
+                if (phi20_up) begin
+                    // Clock Johnson counter.
+                    jc3   <= jc3_next;
+                    jc3_o <= jc3_o_next;
+                end
+            end
+
+            // 10ths of second output.
+            ts <= ts_next;
+        end
+
+        if (phi20_up) begin
+            tod_det_prev <= tod_det;
             ts_prev <= ts;
         end
 

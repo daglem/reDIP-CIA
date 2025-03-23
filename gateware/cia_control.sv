@@ -25,8 +25,9 @@ module cia_control (
     input  cia::reg8_t    data,
     input  logic          cnt,
     input  logic          cnt_up,
+    input  logic          ta_ufl,
+    input  logic          tb_ufl,
     input  logic          ta_int,
-    input  logic          tb_int,
     output cia::control_t regs,
     output cia::tctrl_t   ta_ctrl,
     output cia::tctrl_t   tb_ctrl
@@ -41,6 +42,7 @@ module cia_control (
     logic cra_w_prev;
     logic crb_w;
     logic crb_w_prev;
+    logic cnt_prev;
 
     always_comb begin
         cra_w = we && addr == 'hE;
@@ -48,17 +50,20 @@ module cia_control (
 
         // Multiplexers for register updates.
         ctrl_next.cra        = cra_w ? data : ctrl.cra;
-        ctrl_next.cra.start &= ~(ctrl.cra.runmode & ta_int);
+        ctrl_next.cra.start &= ~(ctrl.cra.runmode & ta_ufl);
 
         ctrl_next.crb        = crb_w ? data : ctrl.crb;
-        ctrl_next.crb.start &= ~(ctrl.crb.runmode & tb_int);
+        ctrl_next.crb.start &= ~(ctrl.crb.runmode & tb_ufl);
 
         // Timer control signals.
         ta_ctrl.start = ctrl_next.cra.start;
         tb_ctrl.start = ctrl_next.crb.start;
 
-        ta_ctrl.outmode = ctrl.cra.outmode;
-        tb_ctrl.outmode = ctrl.crb.outmode;
+        ta_ctrl.toggle = ctrl.cra.outmode;
+        tb_ctrl.toggle = ctrl.crb.outmode;
+
+        ta_ctrl.one_shot = ctrl.cra.runmode;
+        tb_ctrl.one_shot = ctrl.crb.runmode;
 
         // Contrary to what's stated in the datasheet, the control register
         // LOAD bit is actually stored, and is ANDed with the control register
@@ -79,7 +84,7 @@ module cia_control (
         // 1    0    TIMER B counts TIMER A underflow pulses.
         // 1    1    TIMER B counts TIMER A underflow pulses while CNT is high.
         tb_ctrl.count = (ctrl.crb.inmode[1] ?
-                         ta_int & (~ctrl.crb.inmode[0] | cnt) :
+                         ta_int & (~ctrl.crb.inmode[0] | cnt_prev) :
                          ~ctrl.crb.inmode[0] | cnt_up
                         ) & ctrl.crb.start;
 
@@ -104,6 +109,7 @@ module cia_control (
         if (phi2_dn) begin
             cra_w_prev <= cra_w;
             crb_w_prev <= crb_w;
+            cnt_prev   <= cnt;
         end
     end
 endmodule

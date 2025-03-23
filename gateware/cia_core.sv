@@ -28,10 +28,12 @@ module cia_core (
 `endif
 );
 
+`ifdef VM_TRACE
     initial begin
         $dumpfile("cia_core.fst");
         $dumpvars;
     end
+`endif
 
     logic phi2_up;   // PHI2 clock edges
     logic phi2_dn;
@@ -44,6 +46,8 @@ module cia_core (
     logic tod_int;   // Time Of Day interrupt
     logic sp_int;    // Serial Port interrupt
     /* verilator lint_off UNOPTFLAT */
+    logic ta_ufl;    // Timer A underflow
+    logic tb_ufl;    // Timer B underflow
     logic ta_int;    // Timer A interrupt
     logic tb_int;    // Timer B interrupt
     /* verilator lint_off UNOPTFLAT */
@@ -129,7 +133,8 @@ module cia_core (
         .data    (bus_i.data),
         .ctrl    (ta_ctrl),
         .regs    (regs.ta),
-        .t_int   (ta_int),
+        .ufl     (ta_ufl),
+        .intr    (ta_int),
         .pb      (ta_pb)
     );
 
@@ -143,7 +148,8 @@ module cia_core (
         .data    (bus_i.data),
         .ctrl    (tb_ctrl),
         .regs    (regs.tb),
-        .t_int   (tb_int),
+        .ufl     (tb_ufl),
+        .intr    (tb_int),
         .pb      (tb_pb)
     );
 
@@ -173,7 +179,7 @@ module cia_core (
         .we      (we),
         .addr    (bus_i.addr),
         .data    (bus_i.data),
-        .spmode  (regs.control.cra.spmode),
+        .txmode  (regs.control.cra.spmode),
         .ta_int  (ta_int),
         .cnt_up  (cnt_up),
         .sp_in   (bus_i.sp),
@@ -208,8 +214,9 @@ module cia_core (
         .data    (bus_i.data),
         .cnt     (bus_i.cnt),
         .cnt_up  (cnt_up),
+        .ta_ufl  (ta_ufl),
+        .tb_ufl  (tb_ufl),
         .ta_int  (ta_int),
-        .tb_int  (tb_int),
         .regs    (regs.control),
         .ta_ctrl (ta_ctrl),
         .tb_ctrl (tb_ctrl)
