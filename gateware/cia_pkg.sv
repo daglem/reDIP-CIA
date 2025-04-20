@@ -123,7 +123,6 @@ package cia;
     typedef struct packed {
         logic count;
         logic force_load;
-        logic one_shot;
         logic toggle;
         logic start;
     } tctrl_t;

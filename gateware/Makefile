@@ -30,8 +30,8 @@ lint-slang:
 	slang --lint-only -y. -ycells_sim -Wconversion -Wextra -Wparentheses -Wpedantic -Wunused -Wno-implicit-net-port -Wno-unconnected-port -Wno-useless-cast $(FLG) $(PKG) $(TOP).sv -top $(TOP)
 
 $(TOP).json: $(SRC) Makefile
-	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); scratchpad -copy abc9.script.flow3 abc9.script; synth_ice40 -abc9 -abc2 -device u -top $(TOP) -json $@'
-#	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); synth_ice40 -abc9 -device u -dff -top $(TOP) -json $@'
+#	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); scratchpad -copy abc9.script.flow3 abc9.script; synth_ice40 -abc9 -abc2 -device u -top $(TOP) -json $@'
+	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); synth_ice40 -abc9 -device u -dff -top $(TOP) -json $@'
 
 %.asc: %.json %.pcf
 	nextpnr-ice40 --u1k --package sg48 --freq 24 --json $*.json --pcf $*.pcf --asc $@
@@ -43,7 +43,7 @@ prog: $(TOP).bin
 	iceprog $<
 
 sim:
-	verilator --Mdir sim_trace -DVM_TRACE -Wno-CASEINCOMPLETE --timescale "1us/1ps" --trace-fst --trace-structs --trace-underscore --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
+	verilator --Mdir sim_trace -DVM_TRACE -Wno-CASEINCOMPLETE --timescale "1us/1ns" --trace-fst --trace-structs --trace-underscore --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
 	verilator --Mdir sim_log -Wno-CASEINCOMPLETE --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
 
 clean:

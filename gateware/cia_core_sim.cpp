@@ -17,15 +17,16 @@
 // Run "make sim" to create simulation executables.
 //
 // The simulation reads lines on the following format, each line specifying a
-// number of cycles to step before further processing:
+// number of cycles to step before further processing an operation, as seen
+// from the perspective of the CPU:
 //
 // cycles R/W/I register/port/pin value
 //
 // Register/port/pin values:
 // * 0-F: Register address (R/W/I)
 // * PA, PB: Port input/output (R/W)
-// * RES, SP, CNT, TOD, FLAG: Pin input (W)
-// * IRQ, SP, CNT, PC: Pin output (R)
+// * RES, SP, CNT, TOD, FLAG: Pin input (R)
+// * IRQ, SP, CNT, PC: Pin output (W)
 //
 // No processing is done for interrupts (I), however a line containing the ICR
 // register address and value is output for every interrupt, in order to
@@ -141,9 +142,9 @@ Options:
 
 
 // 20.833ns = 20833ps between each edge of the 24MHz FPGA clock.
-// In simulation an 8MHz clock is sufficient (4 cycles between PHI2 edges),
-// i.e. 62.500ns = 62500ps between each edge.
-const uint64_t timestep = 62500;
+// In simulation a 4MHz clock is sufficient (2 cycles between PHI2 edges),
+// i.e. 250ns between each edge.
+const uint64_t timestep = 125;
 
 uint64_t tod_count = 0;
 bool tod_hi = false;
@@ -151,8 +152,8 @@ bool tod_hi = false;
 static void clk(Vcia_core* core) {
     // Verilator doesn't automatically compute combinational logic before
     // sequential blocks are computed. Since our design clocks on the positive
-    // edge of the FPGA clock, we can change non-clock inputs on the negative
-    // edge of the input clock, saving a call to eval().
+    // edge of the FPGA clock, we can change non-clock inputs before the
+    // negative edge of the input clock, saving a call to eval().
     core->clk = 0; core->eval();
     core->contextp()->timeInc(timestep);
     core->clk = 1; core->eval();
@@ -166,112 +167,115 @@ static void clk(Vcia_core* core) {
     }
 }
 
-// In simulation an 8MHz FPGA clock is sufficient (4 cycles between PHI2 edges).
-static void clk4(Vcia_core* core) {
-    for (int i = 0; i < 4; i++) {
+// In simulation a 4MHz FPGA clock is sufficient (2 cycles between PHI2 edges).
+static void clk2(Vcia_core* core) {
+    for (int i = 0; i < 2; i++) {
         clk(core);
     }
 }
 
-static void phi2(Vcia_core* core) {
-    core->bus_i |= (1LL << 35);  // PHI2 high
-    clk4(core);
+static bool phi2_hi = false;
+
+static bool phi2(Vcia_core* core) {
+    // Were we were already in phi2?
+    bool rc = phi2_hi;
+
+    if (!phi2_hi) {
+        core->bus_i |= (1LL << 35);  // PHI2 high
+        clk2(core);
+        phi2_hi = true;
+    }
+
+    return rc;
 }
 
 static void phi1(Vcia_core* core) {
     core->bus_i &= ~(1LL << 35);  // PHI2 low
-    clk4(core);
+    clk2(core);
+    core->bus_i |= (0b11LL << 32);  // Release /CS and /W
+    phi2_hi = false;
 }
 
-static void read(Vcia_core* core, uint8_t addr, uint8_t& val) {
+static void read_reg(Vcia_core* core, int addr, int& val) {
+    core->bus_i = (core->bus_i & 0xfffffff) | (0b1101LL << 32) | (uint64_t(addr) << 28);
+    if (phi2(core)) {
+        // We were already in phi2, so we must call eval() to set the address.
+        core->eval();
+        cerr << "already in phi2 on read" << endl;
+    }
+    val = (core->bus_o >> 36) & 0xff;
+}
+
+static void write_reg(Vcia_core* core, int addr, int data) {
+    core->bus_i = (core->bus_i & 0xfffff) | (0b1100LL << 32) | (uint64_t(addr) << 28) | (uint64_t(data) << 20);
+    if (phi2(core)) {
+        // We were already in phi2, so we must call eval() to set the address / data.
+        core->eval();
+        cerr << "already in phi2 on write" << endl;
+    }
+    /*
     core->bus_i = (core->bus_i & 0xfffffff) | (0b1101LL << 32) | (uint64_t(addr) << 28);
     phi2(core);
-    val = (core->bus_o >> 36) & 0xff;
-    phi1(core);
-    core->bus_i |= (1LL << 33);  // Release /CS
+    core->bus_i |= (uint64_t(data) << 20);
+    */
 }
 
-static void write(Vcia_core* core, uint8_t addr, uint8_t data) {
-    core->bus_i = (core->bus_i & 0xfffff) | (0b1100LL << 32) | (uint64_t(addr) << 28) | (uint64_t(data) << 20);
-    phi2(core);
-    phi1(core);
-    core->bus_i |= (0b11LL << 32);  // Release /CS and /W
+static array<string, 3> ops = { "W", "R", "I" };
+static array<string, 2> ports = { "PA", "PB" };
+static array<string, 5> in_pins = { "SP", "CNT", "TOD", "FLAG", "RES" };
+static array<string, 4> out_pins = { "IRQ", "SP", "CNT", "PC" };
+
+static void write_pin(Vcia_core* core, int ix_pin, int& val) {
+    val = (core->bus_o >> ix_pin) & 1;
 }
 
-string out_pins[] = { "IRQ", "SP", "CNT", "PC" };
-
-static bool read_pin(Vcia_core* core, string& name, uint8_t& val) {
-    int i = -1;
-    for (auto pin_name : out_pins) {
-        i++;
-        if (name != pin_name) continue;
-        val = (core->bus_o >> i) & 1;
-        return true;
-    }
-    return false;
-}
-
-string in_pins[] = { "SP", "CNT", "TOD", "FLAG" };
-
-static bool write_pin(Vcia_core* core, string& name, uint8_t val) {
-    if (name == "RES") {
+static void read_pin(Vcia_core* core, int ix_pin, int val) {
+    if (ix_pin == 4) {  // RES
         core->bus_i = (core->bus_i & ~(1LL << 34)) | (uint64_t(val) << 34);
-        return true;
-    }
-
-    int i = -1;
-    for (auto pin_name : in_pins) {
-        i++;
-        if (name != pin_name) continue;
-        if (name == "SP" || name == "CNT") {
+    } else {
+        if (ix_pin == 0 || ix_pin == 1) {  // SP or CNT
             // Read pulled down output back in.
-            int o = i + 1;
+            int o = ix_pin + 1;
             val = ((core->bus_o >> o) & 1) & val;
         }
-        core->bus_i = (core->bus_i & ~(1LL << i)) | (uint64_t(val) << i);
-        return true;
+        core->bus_i = (core->bus_i & ~(1LL << ix_pin)) | (uint64_t(val) << ix_pin);
     }
-    return false;
 }
 
-static bool read_port(Vcia_core* core, string& name, uint8_t& val) {
-    int o;
-    if (name == "PA") {
-        o = 28;
-    } else if (name == "PB") {
-        o = 20;
-    } else {
-        return false;
-    }
+static void write_port(Vcia_core* core, int ix_port, int& val) {
+    int o = ix_port == 0 ? 28 : 20;  // PA or PB
 
     // Only pull line down when DDR bit is set for output.
-    val = (core->bus_o >> o) | ~(core->bus_o >> (o - 16));
-    return true;
+    val = ((core->bus_o >> o) | ~(core->bus_o >> (o - 16))) & 0xff;
+    // val = (core->bus_o >> o) & 0xff;
 }
 
-static bool write_port(Vcia_core* core, string& name, uint8_t val) {
+static void read_port(Vcia_core* core, int ix_port, int val) {
+    if (phi2_hi) {
+        cerr << "already in phi2 on read_port" << endl;
+    }
     int i, o;
-    if (name == "PA") {
+    if (ix_port == 0) {  // PA
         i = 12;
         o = 28;
-    } else if (name == "PB") {
+    } else {  // PB
         i = 4;
         o = 20;
-    } else {
-        return false;
     }
 
+    /*
     // Read output bits back in, other bits from input.
     uint8_t ddr = core->bus_o >> (o - 16);
     uint8_t in = ((core->bus_o >> o) & ddr) | (val & ~ddr);
     core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(in) << i);
-    return true;
+    */
+    core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(val) << i);
 }
 
 
 static bool irq_n_prev = true;
 
-static bool interrupt(Vcia_core* core, string& addr, uint8_t& val) {
+static bool interrupt(Vcia_core* core, int& val) {
     bool irq_n = core->bus_o & 1;
     bool irq = irq_n_prev && !irq_n;
     irq_n_prev = irq_n;
@@ -281,10 +285,92 @@ static bool interrupt(Vcia_core* core, string& addr, uint8_t& val) {
     }
 
     // Read ICR register via debug-only port.
-    addr = "D";
     val = core->icr;
 
     return true;
+}
+
+int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_name, int& addr, int& data) {
+    string op, val;
+    istringstream lineio(line);
+    // FIXME: Error handling
+    lineio >> cycles >> op >> addr_name >> val >> ws;
+
+    // Operation: W/R/I
+    auto it = ranges::find(ops, op);
+    if (it == ops.end()) {
+        cerr << "Invalid operation in line " << lineno << ": " << line << endl;
+        exit(EXIT_FAILURE);
+    }
+    ix_op = distance(ops.begin(), it);
+
+    // Value
+    const char* last = val.data() + val.size();
+    auto [ptrd, ecd] = from_chars(val.data(), last, data, 16);
+    if (ecd != std::errc{} || ptrd != last) {
+        cerr << "Invalid value in line " << lineno << ": " << line << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Addressed element.
+    // Try parsing as register address.
+    last = addr_name.data() + addr_name.size();
+    auto [ptra, eca] = from_chars(addr_name.data(), last, addr, 16);
+    if (eca == std::errc{} && ptra == last) {
+        if (addr < 0x0 || addr > 0xF || (ix_op == 2 && addr != 0xD)) {
+            cerr << "Invalid address in line " << lineno << ": " << line << endl;
+            exit(EXIT_FAILURE);
+        }
+        if (data < 0x0 || data > 0xFF) {
+            cerr << "Invalid value in line " << lineno << ": " << line << endl;
+            exit(EXIT_FAILURE);
+        }
+
+        // Register
+        return 0;
+    }
+
+    // Not a register address, try port names.
+    it = ranges::find(ports, addr_name);
+    if (it != ports.end()) {
+        addr = distance(ports.begin(), it);
+        if (data < 0x0 || data > 0xFF) {
+            cerr << "Invalid value in line " << lineno << ": " << line << endl;
+            exit(EXIT_FAILURE);
+        }
+        // Port
+        return 1;
+    }
+
+    // Not a port, try input/output pin names.
+    if (ix_op == 0) {
+        // Write
+        it = ranges::find(out_pins, addr_name);
+        if (it != out_pins.end()) {
+            addr = distance(out_pins.begin(), it);
+            if (data < 0 || data > 1) {
+                cerr << "Invalid value in line " << lineno << ": " << line << endl;
+                exit(EXIT_FAILURE);
+            }
+            // Output pin
+            return 2;
+        }
+    } else if (ix_op == 1) {
+        // Read
+        it = ranges::find(in_pins, addr_name);
+        if (it != in_pins.end()) {
+            addr = distance(in_pins.begin(), it);
+            if (data < 0 || data > 1) {
+                cerr << "Invalid value in line " << lineno << ": " << line << endl;
+                exit(EXIT_FAILURE);
+            }
+            // Input pin
+            return 3;
+        }
+    }
+
+    cerr << "Invalid pin/port name in line " << lineno << ": " << line << endl;
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char** argv, char** env) {
@@ -320,11 +406,6 @@ int main(int argc, char** argv, char** env) {
     core->bus_i = 0;
     core->bus_i |= (0b111LL << 32);  // Release /RES, /CS and /W
     core->bus_i |= 0b1011L; // Release /FLAG, CNT, and SP.
-    // Reset
-    core->rst = 1;
-    phi2(core);
-    phi1(core);
-    core->rst = 0;
 
     auto fin = input_filename.empty() ? ifstream() : ifstream(input_filename);
     auto& in = input_filename.empty() ? cin : fin;
@@ -335,103 +416,84 @@ int main(int argc, char** argv, char** env) {
     constexpr const char* fmt_pin = "{} {} {} {}\n";
     //constexpr string_view fmt{"{} {} {} {:02X}"};
 
-    int skip_cycle = 0;
-    int cycles_left = 0;
+    int cycles_spent = 0;
+    bool skip_cycle = false;
     for (int lineno = 1; getline(in, line); lineno++) {
-        int cycles;
-        string op, addr, val;
+        int cycles, ix_op, addr, data;
+        string addr_name;
+        int obj = parse_line(lineno, line, cycles, ix_op, addr_name, addr, data);
 
-        istringstream lineio(line);
-        lineio >> cycles >> op >> addr >> val >> ws;
+        for (int i = 0;;) {
+            if (i < cycles) {
+                if (!skip_cycle) {
+                    phi2(core);
+                    phi1(core);
+                }
+                skip_cycle = false;
+                i++;
 
-        int cycles_spent = 0;
-        for (int i = 0; i < cycles; i++) {
-            if (!skip_cycle) {
-                phi2(core);
-                phi1(core);
-            }
-            skip_cycle = 0;
+                int flags;
+                if (interrupt(core, flags)) {
+                    out << format(fmt, cycles_spent + i, "I", "D", flags);
+                    cycles -= i;
+                    cycles_spent = 0;
+                    i = 0;
+                }
 
-            string icr;
-            uint8_t flags;
-            if (interrupt(core, icr, flags)) {
-                out << format(fmt, i + 1 - cycles_spent, "I", icr, flags);
-                cycles_spent = i + 1;
-            }
-        }
-        cycles -= cycles_spent;
-
-        if (op == "I") {
-            cycles_left = cycles;
-            continue;
-        } else if (op != "R" && op != "W") {
-            cerr << "Invalid operation in line " << lineno << ": " << op << endl;
-            exit(EXIT_FAILURE);
-        }
-
-        cycles += cycles_left;
-        cycles_left = 0;
-
-        uint8_t data{};
-        const char* last = val.data() + val.size();
-        auto [ptrd, ecd] = from_chars(val.data(), last, data, 16);
-        if (ecd != std::errc{} || ptrd != last) {
-            cerr << "Invalid value in line " << lineno << ": " << val << endl;
-            exit(EXIT_FAILURE);
-        }
-
-        uint8_t reg;
-        last = addr.data() + addr.size();
-        auto [ptra, eca] = from_chars(addr.data(), last, reg, 16);
-        if (eca == std::errc{} && ptra == last) {
-            if (reg < 0x0 || reg > 0xF) {
-                cerr << "Invalid address in line " << lineno << ": " << addr << endl;
-                exit(EXIT_FAILURE);
-            }
-            if (data < 0x0 || data > 0xFF) {
-                cerr << "Invalid value in line " << lineno << ": " << val << endl;
-                exit(EXIT_FAILURE);
+                continue;
             }
 
-            if (op == "R") {
-                read(core, reg, data);
-            } else if (op == "W") {
-                write(core, reg, data);
-            }
-
-            line = format(fmt, cycles, op, addr, data);
-
-            // read()/write() steps one cycle; adjust for that in the next line.
-            skip_cycle = 1;
-        } else {
-            // Assume pin or port name.
-            bool port = addr == "PA" || addr == "PB";
-            uint8_t maxval = port ? 0xFF : 1;
-            if (data < 0 || data > maxval) {
-                cerr << "Invalid value in line " << lineno << ": " << val << endl;
-                exit(EXIT_FAILURE);
-            }
-
-            if (op == "R") {
-                if (!read_pin(core, addr, data) && !read_port(core, addr, data)) {
-                    cerr << "Invalid pin/port name in line " << lineno << ": " << addr << endl;
-                    exit(EXIT_FAILURE);
+            // i == cycles
+            if (obj == 0) {
+                // Register
+                if (ix_op < 2) {
+                    if (ix_op == 0) {
+                        write_reg(core, addr, data);
+                    } else {
+                        read_reg(core, addr, data);
+                    }
+                } else {
+                    // Interrupt
+                    cycles_spent += cycles;
+                    break;
+                }
+            } else if (obj == 1) {
+                // Port
+                if (ix_op == 0) {
+                    // Currently not used.
+                    if (!skip_cycle) {
+                        phi2(core);
+                        phi1(core);
+                        skip_cycle = true;
+                    }
+                    write_port(core, addr, data);
+                } else {
+                    read_port(core, addr, data);
                 }
             } else {
-                if (!write_pin(core, addr, data) && !write_port(core, addr, data)) {
-                    cerr << "Invalid pin/port name in line " << lineno << ": " << addr << endl;
-                    exit(EXIT_FAILURE);
+                // Pin
+                if (ix_op == 0) {
+                    if (!skip_cycle) {
+                        phi2(core);
+                        phi1(core);
+                        skip_cycle = true;
+                    }
+                    write_pin(core, addr, data);
+                } else {
+                    read_pin(core, addr, data);
                 }
             }
 
-            if (port) {
-                line = format(fmt, cycles, op, addr, data);
+            if (obj <= 1) {
+                // Reg or port
+                out << format(fmt, cycles_spent + cycles, ops[ix_op], addr_name, data);
             } else {
-                line = format(fmt_pin, cycles, op, addr, data);
+                // Pin
+                out << format(fmt_pin, cycles_spent + cycles, ops[ix_op], addr_name, data);
             }
+            cycles_spent = 0;
+            break;
         }
-
-        out << line;
     }
 
     out.close();

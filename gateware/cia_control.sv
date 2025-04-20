@@ -29,6 +29,7 @@ module cia_control (
     input  logic          tb_ufl,
     input  logic          ta_int,
     output cia::control_t regs,
+    output logic          sp_tx,
     output cia::tctrl_t   ta_ctrl,
     output cia::tctrl_t   tb_ctrl
 );
@@ -49,21 +50,23 @@ module cia_control (
         crb_w = we && addr == 'hF;
 
         // Multiplexers for register updates.
+        // FIXME: How come the previous runmode must be taken into account?
+        // Test: vice-testprogs/general/Lorenz-2.15/src/flipos.prg
         ctrl_next.cra        = cra_w ? data : ctrl.cra;
-        ctrl_next.cra.start &= ~(ctrl.cra.runmode & ta_ufl);
+        ctrl_next.cra.start &= ~((ctrl.cra.runmode | ctrl_next.cra.runmode) & ta_ufl);
 
         ctrl_next.crb        = crb_w ? data : ctrl.crb;
-        ctrl_next.crb.start &= ~(ctrl.crb.runmode & tb_ufl);
+        ctrl_next.crb.start &= ~((ctrl.crb.runmode | ctrl_next.crb.runmode) & tb_ufl);
+
+        // Note that this signal is taken out before phi2_dn.
+        sp_tx = ctrl_next.cra.spmode;
 
         // Timer control signals.
-        ta_ctrl.start = ctrl_next.cra.start;
-        tb_ctrl.start = ctrl_next.crb.start;
+        ta_ctrl.start = ctrl.cra.start;
+        tb_ctrl.start = ctrl.crb.start;
 
         ta_ctrl.toggle = ctrl.cra.outmode;
         tb_ctrl.toggle = ctrl.crb.outmode;
-
-        ta_ctrl.one_shot = ctrl.cra.runmode;
-        tb_ctrl.one_shot = ctrl.crb.runmode;
 
         // Contrary to what's stated in the datasheet, the control register
         // LOAD bit is actually stored, and is ANDed with the control register

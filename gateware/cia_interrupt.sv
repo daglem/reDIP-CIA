@@ -19,6 +19,7 @@
 module cia_interrupt (
     input  cia::model_t model,
     input  logic        clk,
+    input  logic        phi2_up,
     input  logic        phi2_dn,
     input  logic        res,
     input  logic        rd,
@@ -32,22 +33,68 @@ module cia_interrupt (
     output logic        irq_n
     );
 
-    logic [1:0] phi1;  // Extra synchronization steps for SR and RS latches
     logic [4:0] flags;
+    logic [4:0] flags_prev;
     logic [4:0] mask;
     logic [4:0] sources_prev;  // For MOS6526 delay
-    logic       rd_flags;
+    logic [4:0] sources_model;
     logic       wr_mask;
+    logic       rd_flags;
+    logic       rd_or_res;
+    logic       ir_set;
+    logic       ir_n;
+    logic       ir_n_prev;
     logic       irq;
+    logic       irq_prev;
 
     always_comb begin
         wr_mask = we && addr == 'hD && phi2_dn;
 
+        rd_or_res = rd_flags | res;
+
+        sources_model = model == cia::MOS6526 ? sources_prev : sources;
+
+        for (int i = 0; i < 5; i++) begin
+            // SR latches setting interrupt source flags.
+            // FIXME: Some (all?) CIA chips have a bug where this works as
+            // an RS latch instead of an SR latch, causing flags to be lost
+            // when a read is made on the same cycle as an interrupt
+            // FIXME: Can this also cause interrupts to be lost below?
+            if      (sources_model[i]) flags[i] = 1;
+            else if (rd_or_res)        flags[i] = 0;
+            else                       flags[i] = flags_prev[i];
+        end
+
+        ir_set = |(flags & mask);
+
+        // SR/RS latch setting IR flag and /IRQ pad.
+        unique case ({ rd_or_res, ir_set })
+          2'b00: { ir_n, irq } = { ir_n_prev, irq_prev };
+          2'b01: { ir_n, irq } = 2'b01;
+          2'b10: { ir_n, irq } = 2'b10;
+          2'b11: { ir_n, irq } = 2'b00;
+        endcase
+
         irq_n = ~irq;
-        regs  = { irq, 2'b0, flags };
+        regs  = { ~ir_n, 2'b0, flags };
     end
 
     always_ff @(posedge clk) begin
+        if (phi2_up) begin
+            // Delay interrupt sources for MOS6526.
+            sources_prev <= sources;
+        end
+
+        if (phi2_up) begin
+            ir_n_prev  <= ir_n;
+            irq_prev   <= irq;
+        end
+
+        // FIXME
+        // Always update in order to handle short resets in cia_serial
+        // simulation.
+        flags_prev <= flags;
+
         if (res) begin
             mask <= '0;
         end else if (wr_mask) begin
@@ -56,42 +103,6 @@ module cia_interrupt (
 
         if (phi2_dn) begin
             rd_flags <= rd && addr == 'hD;
-        end
-
-        // Extra synchronization steps for SR and RS latches.
-        if (phi2_dn) begin
-            phi1 <= 1;
-        end else if (phi1 == 1) begin
-            phi1 <= 2;
-        end else begin
-            phi1 <= 0;
-        end
-
-        if (phi1 == 1) begin
-            // Delay interrupt sources for MOS6526.
-            sources_prev <= sources;
-
-            for (int i = 0; i < 5; i++) begin
-                // SR latches setting interrupt source flags.
-                // FIXME: Some (all?) CIA chips have a bug where this works as
-                // an RS latch instead of an SR latch, causing flags to be lost
-                // when a read is made on the same cycle as an interrupt
-                // FIXME: Can this also cause interrupts to be lost below?
-                if (model == cia::MOS6526 ? sources_prev[i] : sources[i]) begin
-                    flags[i] <= 1;
-                end else if (res | rd_flags) begin
-                    flags[i] <= 0;
-                end
-            end
-        end
-
-        // RS latch setting IRQ flag.
-        if (phi1 == 2) begin
-            if (res | rd_flags) begin
-                irq <= 0;
-            end else if (|(flags & mask)) begin
-                irq <= 1;
-            end
         end
     end
 endmodule

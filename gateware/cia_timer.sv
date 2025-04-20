@@ -38,6 +38,7 @@ module cia_timer (
     logic hi_w_prev;        // Register write
     logic start_prev;       // Control register start
     logic reload;           // Reload counter from latch
+    logic reload_prev;
     logic count_prev;
     logic toggle;           // Timer underflow toggle
     logic pulse;            // Timer underflow pulse
@@ -47,7 +48,7 @@ module cia_timer (
         counter_next = counter - { 15'b0, count_prev };
 
         // Timer underflow when the timer reaches 0 while counting.
-        ufl = ~|counter_next & ctrl.count;
+        ufl = ~(reload_prev ? |prescaler_next : |counter_next) & ctrl.count;
 
         // Load timer on timer underflow, force load, or write to timer
         // high byte while the timer is stopped.
@@ -78,7 +79,7 @@ module cia_timer (
             prescaler <= prescaler_next;
 
             // Timer load or count.
-            if (reload) begin
+            if (reload || reload_prev) begin
                 counter <= prescaler_next;
             end else begin
                 counter <= counter_next;
@@ -92,14 +93,15 @@ module cia_timer (
                 toggle <= 1'b0;
             end else if (~start_prev & ctrl.start) begin
                 toggle <= 1'b1;
-            end else if (ufl) begin
+            end else if (~pulse & ufl) begin
                 toggle <= ~toggle;
             end
 
-            hi_w_prev  <= hi_w;
-            start_prev <= ctrl.start;
-            count_prev <= ctrl.count & ~reload;
-            pulse      <= ufl;
+            hi_w_prev   <= hi_w;
+            start_prev  <= ctrl.start;
+            reload_prev <= reload;
+            count_prev  <= ctrl.count;
+            pulse       <= ufl;
         end
     end
 endmodule
