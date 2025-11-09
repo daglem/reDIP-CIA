@@ -419,71 +419,71 @@ int main(int argc, char** argv, char** env) {
     int cycles_spent = 0;
     bool skip_cycle = false;
     for (int lineno = 1; getline(in, line); lineno++) {
+        bool irq = false;
+        int flags;
         int cycles, ix_op, addr, data;
         string addr_name;
         int obj = parse_line(lineno, line, cycles, ix_op, addr_name, addr, data);
 
-        for (int i = 0;;) {
-            if (i < cycles) {
+        for (int i = 0; i < cycles;) {
+            if (!skip_cycle) {
+                phi2(core);
+                phi1(core);
+            }
+            skip_cycle = false;
+            i++;
+
+            irq = interrupt(core, flags);
+            if (irq && i < cycles) {
+                out << format(fmt, cycles_spent + i, "I", "D", flags);
+                cycles_spent = 0;
+                cycles -= i;
+                i = 0;
+                irq = false;
+            }
+        }
+
+        // i == cycles
+        if (obj == 0) {
+            // Register
+            if (ix_op < 2) {
+                if (ix_op == 0) {
+                    write_reg(core, addr, data);
+                } else {
+                    read_reg(core, addr, data);
+                }
+            } else {
+                // Interrupt
+                cycles_spent += cycles;
+            }
+        } else if (obj == 1) {
+            // Port
+            if (ix_op == 0) {
+                // Currently not used.
                 if (!skip_cycle) {
                     phi2(core);
                     phi1(core);
+                    skip_cycle = true;
                 }
-                skip_cycle = false;
-                i++;
-
-                int flags;
-                if (interrupt(core, flags)) {
-                    out << format(fmt, cycles_spent + i, "I", "D", flags);
-                    cycles -= i;
-                    cycles_spent = 0;
-                    i = 0;
-                }
-
-                continue;
-            }
-
-            // i == cycles
-            if (obj == 0) {
-                // Register
-                if (ix_op < 2) {
-                    if (ix_op == 0) {
-                        write_reg(core, addr, data);
-                    } else {
-                        read_reg(core, addr, data);
-                    }
-                } else {
-                    // Interrupt
-                    cycles_spent += cycles;
-                    break;
-                }
-            } else if (obj == 1) {
-                // Port
-                if (ix_op == 0) {
-                    // Currently not used.
-                    if (!skip_cycle) {
-                        phi2(core);
-                        phi1(core);
-                        skip_cycle = true;
-                    }
-                    write_port(core, addr, data);
-                } else {
-                    read_port(core, addr, data);
-                }
+                write_port(core, addr, data);
             } else {
-                // Pin
-                if (ix_op == 0) {
-                    if (!skip_cycle) {
-                        phi2(core);
-                        phi1(core);
-                        skip_cycle = true;
-                    }
-                    write_pin(core, addr, data);
-                } else {
-                    read_pin(core, addr, data);
-                }
+                read_port(core, addr, data);
             }
+        } else {
+            // Pin
+            if (ix_op == 0) {
+                if (!skip_cycle) {
+                    phi2(core);
+                    phi1(core);
+                    skip_cycle = true;
+                }
+                write_pin(core, addr, data);
+            } else {
+                read_pin(core, addr, data);
+            }
+        }
 
+        if (ix_op < 2) {
             if (obj <= 1) {
                 // Reg or port
                 out << format(fmt, cycles_spent + cycles, ops[ix_op], addr_name, data);
@@ -492,7 +492,11 @@ int main(int argc, char** argv, char** env) {
                 out << format(fmt_pin, cycles_spent + cycles, ops[ix_op], addr_name, data);
             }
             cycles_spent = 0;
-            break;
+        }
+
+        if (irq) {
+            out << format(fmt, cycles_spent, "I", "D", flags);
+            cycles_spent = 0;
         }
     }
 
