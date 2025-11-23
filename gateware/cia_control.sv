@@ -29,7 +29,6 @@ module cia_control (
     input  logic          tb_ufl,
     input  logic          ta_int,
     output cia::control_t regs,
-    output logic          sp_tx,
     output cia::tctrl_t   ta_ctrl,
     output cia::tctrl_t   tb_ctrl
 );
@@ -57,9 +56,6 @@ module cia_control (
 
         ctrl_next.crb        = crb_w ? data : ctrl.crb;
         ctrl_next.crb.start &= ~((ctrl.crb.runmode | ctrl_next.crb.runmode) & tb_ufl);
-
-        // Note that this signal is taken out before phi2_dn.
-        sp_tx = ctrl_next.cra.spmode;
 
         // Timer control signals.
         ta_ctrl.start = ctrl.cra.start;

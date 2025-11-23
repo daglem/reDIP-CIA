@@ -24,7 +24,7 @@ module cia_serial (
     input  logic       we,
     input  cia::reg4_t addr,
     input  cia::reg8_t data,
-    input  logic       sp_tx,
+    input  logic       txmode,
     input  logic       ta_int,
     input  logic       cnt_up,
     input  logic       sp_in,
@@ -38,26 +38,26 @@ module cia_serial (
     cia::reg8_t sr;     // Shift register
 
     logic we_sdr;       // Register write
-    logic txmode;       // CRA.SPMODE after phi2_dn
+    logic we_sdr_prev;  // Register write
     logic sp_res;       // Serial Port reset
-    logic sp_res_next;
 
+    logic txmode_prev;
     logic tx_init;      // Initiate transmission
+    logic tx_init_prev;
     logic tx_active;    // Transmission is active
+    logic tx_active_prev;
     logic sdr_to_sr;    // Load shift register from SDR on start of transmission
-    logic sdr_to_sr_next;
     logic sr_to_sdr;    // Load SDR from shift register on end of reception
-    logic tx_osc;       // Internal transmission oscillator
-    logic tx_osc_prev;
-    logic tx_osc_2;     // Divided by two (toggle)
-    logic tx_osc_2_prev;
+    logic tx_osc_in;    // Internal transmission oscillator input
+    logic tx_osc_in_prev;
+    logic tx_osc_out;   // Internal transmission oscillator output (toggle - i.e. divided by two)
+    logic tx_osc_out_prev;
     logic tx_clk;       // Internal transmission clock
     logic tx_cnt;       // Transmission oscillator to CNT pad
     logic tx_sp;        // Data bit to SP pad
     logic tx_sp_next;
     logic rx_clk;       // Reception clock from CNT pad edge detector
     logic sr_clk;       // Shift register clock
-    logic sr_clk_next;
     logic sr_clk_prev;
 
     cia::reg4_t sr_cnt; // 4 bit Johnson counter, counting 8 bit shifts
@@ -69,16 +69,23 @@ module cia_serial (
         we_sdr = we && addr == 'hC;
 
         rx_clk = ~txmode & cnt_up;
-        tx_clk = txmode & (~tx_osc_2_prev & tx_osc_2);
-        sr_clk_next = rx_clk | tx_clk;
+        tx_clk = txmode & (~tx_osc_out_prev & tx_osc_out);
 
         // Reset on change of CRA.SPMODE.
-        sp_res_next = res | (txmode ^ sp_tx);
+        sp_res = res | (txmode_prev ^ txmode);
 
-        sdr_to_sr_next = tx_init & (~tx_active | sp_int);
+        // Output of Johnson counter.
+        sp_int  = ~sr_done_prev & (sr_done | sp_res);
 
-        sr_cnt_out = sr_cnt & {4{~sp_res_next}};
-        sr_done    = ~|sr_cnt_out;
+        // TX init - SR latch.
+        if      (we_sdr_prev & txmode) tx_init = 1;
+        else if (sp_res | sdr_to_sr)   tx_init = 0;
+        else                           tx_init = tx_init_prev;
+
+        // TX active - RS latch.
+        if      (sp_res | (~tx_init & sp_int)) tx_active = 0;
+        else if (sdr_to_sr)                    tx_active = 1;
+        else                                   tx_active = tx_active_prev;
 
         cnt_out = tx_cnt | ~txmode;
         sp_out  = tx_sp | ~txmode;
@@ -101,23 +108,18 @@ module cia_serial (
 
     always_ff @(posedge clk) begin
         if (phi2_dn) begin
-            // TX init - SR latch.
-            if      (we_sdr & sp_tx)               tx_init <= 1;
-            else if (sp_res_next | sdr_to_sr_next) tx_init <= 0;
+            tx_osc_in_prev <= tx_osc_in;
+            tx_osc_in      <= ta_int & (tx_active | tx_osc_out);
 
-            tx_osc      <= ta_int & (tx_active | tx_osc_2);
-            tx_osc_prev <= tx_osc;
-
-            sp_res      <= sp_res_next;
-            tx_cnt      <= ~tx_osc_2_prev;
+            tx_cnt      <= ~tx_osc_out_prev;
             tx_sp       <= tx_sp_next;
 
-            txmode      <= sp_tx;
-            sr_clk      <= sr_clk_next;
-            sdr_to_sr   <= sdr_to_sr_next;
+            we_sdr_prev <= we_sdr;
+            txmode_prev <= txmode;
 
-            sp_int       <= ~sr_done_prev & sr_done;
-            sr_done_prev <= sr_done;
+            sr_clk_prev <= sr_clk;
+            sr_clk      <= rx_clk | tx_clk;
+            sdr_to_sr   <= tx_init & (~tx_active | sp_int);
         end
     end
 
@@ -125,11 +127,11 @@ module cia_serial (
         // Clock on the rising edge of PHI2, sampling sp_in at approximately
         // the same time as in a real CIA chip.
         if (phi2_up) begin
-            // TX active - RS latch.
-            if      (sp_res | (~tx_init & sp_int)) tx_active <= 0;
-            else if (sdr_to_sr)                    tx_active <= 1;
+            // Keep states for latches.
+            tx_init_prev   <= tx_init;
+            tx_active_prev <= tx_active;
 
-            // Load shift register for transmission.
+            // Clock in received bit or load shift register for transmission.
             // sdr_to_sr and sr_clk cannot be active simultaneously.
             unique0 case ({ sdr_to_sr, sr_clk })
               2'b01: sr <= { sr[6:0], ~(sp_in | txmode) };
@@ -137,12 +139,12 @@ module cia_serial (
             endcase
 
             // Internal TX oscillator.
+            tx_osc_out_prev <= tx_osc_out;
             if (sp_res) begin
-                tx_osc_2 <= 0;
-            end if (~tx_osc_prev & tx_osc) begin
-                tx_osc_2 <= ~tx_osc_2;
+                tx_osc_out <= 0;
+            end if (~tx_osc_in_prev & tx_osc_in) begin
+                tx_osc_out <= ~tx_osc_out;
             end
-            tx_osc_2_prev <= tx_osc_2;
 
             sr_to_sdr <= ~txmode & sp_int;
 
@@ -156,15 +158,29 @@ module cia_serial (
 
         if (phi2_up) begin
             // Clock Johnson counter, counting 8 bit shifts.
-            if (sr_clk_prev & ~sr_clk) begin
-                sr_cnt <= sp_res ? 4'b1 : { sr_cnt[2:0], ~sr_cnt[3] };
+            if (sr_clk) begin
+                // Shift in.
+                sr_cnt <= sp_res ? 4'b1 : { sr_cnt_out[2:0], ~sr_cnt_out[3] };
+            end else if (sr_clk_prev) begin
+                // Shift out.
+                if (sp_res) begin
+                    // Shift in was still active during the previous phi1;
+                    // take a possible reset into account.
+                    sr_cnt     <= 4'b1;
+                    sr_cnt_out <= 4'b1;
+                end else begin
+                    sr_cnt_out <= sr_cnt;
+                end
+            end else if (sp_res) begin
+                // Reset (refresh in original chip).
+                sr_cnt     <= '0;
+                sr_cnt_out <= '0;
             end
-            sr_clk_prev <= sr_clk;
-        end else if (phi2_dn) begin
-            // Note extra check for res to handle short resets in simulation.
-            if ((~(sr_clk | sr_clk_next) && sp_res_next) || res) begin
-                sr_cnt <= '0;
-            end
+        end
+
+        if (phi2_dn) begin
+            sr_done_prev <= sr_done | sp_res;
+            sr_done      <= ~|sr_cnt_out;
         end
     end
 endmodule

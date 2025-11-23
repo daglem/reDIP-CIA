@@ -44,7 +44,6 @@ module cia_core (
     logic cnt_up;    // CNT edge detector
     logic flag_int;  // /FLAG edge detector interrupt
     logic tod_int;   // Time Of Day interrupt
-    logic sp_tx;     // CRA.SPMODE before phi2_dn
     logic sp_int;    // Serial Port interrupt
     /* verilator lint_off UNOPTFLAT */
     logic ta_ufl;    // Timer A underflow
@@ -180,7 +179,7 @@ module cia_core (
         .we      (we),
         .addr    (bus_i.addr),
         .data    (bus_i.data),
-        .sp_tx   (sp_tx),
+        .txmode  (regs.control.cra.spmode),
         .ta_int  (ta_int),
         .cnt_up  (cnt_up),
         .sp_in   (bus_i.sp),
@@ -220,7 +219,6 @@ module cia_core (
         .tb_ufl  (tb_ufl),
         .ta_int  (ta_int),
         .regs    (regs.control),
-        .sp_tx   (sp_tx),
         .ta_ctrl (ta_ctrl),
         .tb_ctrl (tb_ctrl)
     );
