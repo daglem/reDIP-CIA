@@ -290,17 +290,23 @@ static bool interrupt(Vcia_core* core, int& val) {
     return true;
 }
 
+void input_error(int lineno, string msg, string input) {
+    cerr << (input_filename.empty() ? "stdin" : input_filename) << " line " << lineno << ": " << msg << " in input \"" << input << "\"" << endl;
+    exit(EXIT_FAILURE);
+}
+
 int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_name, int& addr, int& data) {
     string op, val;
     istringstream lineio(line);
-    // FIXME: Error handling
     lineio >> cycles >> op >> addr_name >> val >> ws;
+    if (!lineno) {
+        input_error(lineno, "Bad format", line);
+    }
 
     // Operation: W/R/I
     auto it = ranges::find(ops, op);
     if (it == ops.end()) {
-        cerr << "Invalid operation in line " << lineno << ": " << line << endl;
-        exit(EXIT_FAILURE);
+        input_error(lineno, "Invalid operation", line);
     }
     ix_op = distance(ops.begin(), it);
 
@@ -308,8 +314,7 @@ int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_n
     const char* last = val.data() + val.size();
     auto [ptrd, ecd] = from_chars(val.data(), last, data, 16);
     if (ecd != std::errc{} || ptrd != last) {
-        cerr << "Invalid value in line " << lineno << ": " << line << endl;
-        exit(EXIT_FAILURE);
+        input_error(lineno, "Invalid value", line);
     }
 
     // Addressed element.
@@ -318,12 +323,10 @@ int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_n
     auto [ptra, eca] = from_chars(addr_name.data(), last, addr, 16);
     if (eca == std::errc{} && ptra == last) {
         if (addr < 0x0 || addr > 0xF || (ix_op == 2 && addr != 0xD)) {
-            cerr << "Invalid address in line " << lineno << ": " << line << endl;
-            exit(EXIT_FAILURE);
+            input_error(lineno, "Invalid address", line);
         }
         if (data < 0x0 || data > 0xFF) {
-            cerr << "Invalid value in line " << lineno << ": " << line << endl;
-            exit(EXIT_FAILURE);
+            input_error(lineno, "Invalid value", line);
         }
 
         // Register
@@ -335,8 +338,7 @@ int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_n
     if (it != ports.end()) {
         addr = distance(ports.begin(), it);
         if (data < 0x0 || data > 0xFF) {
-            cerr << "Invalid value in line " << lineno << ": " << line << endl;
-            exit(EXIT_FAILURE);
+            input_error(lineno, "Invalid value", line);
         }
         // Port
         return 1;
@@ -349,8 +351,7 @@ int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_n
         if (it != out_pins.end()) {
             addr = distance(out_pins.begin(), it);
             if (data < 0 || data > 1) {
-                cerr << "Invalid value in line " << lineno << ": " << line << endl;
-                exit(EXIT_FAILURE);
+                input_error(lineno, "Invalid value", line);
             }
             // Output pin
             return 2;
@@ -361,15 +362,14 @@ int parse_line(int lineno, string& line, int& cycles, int& ix_op, string& addr_n
         if (it != in_pins.end()) {
             addr = distance(in_pins.begin(), it);
             if (data < 0 || data > 1) {
-                cerr << "Invalid value in line " << lineno << ": " << line << endl;
-                exit(EXIT_FAILURE);
+                input_error(lineno, "Invalid value", line);
             }
             // Input pin
             return 3;
         }
     }
 
-    cerr << "Invalid pin/port name in line " << lineno << ": " << line << endl;
+    input_error(lineno, "Invalid pin/port name", line);
     exit(EXIT_FAILURE);
 }
 
@@ -408,6 +408,10 @@ int main(int argc, char** argv, char** env) {
     core->bus_i |= 0b1011L; // Release /FLAG, CNT, and SP.
 
     auto fin = input_filename.empty() ? ifstream() : ifstream(input_filename);
+    if (!fin) {
+        cerr << "Error opening " << input_filename << ": " << strerror(errno) << endl;
+        return EXIT_FAILURE;
+    }
     auto& in = input_filename.empty() ? cin : fin;
     auto out = ofstream(output_filename);
 
@@ -441,6 +445,10 @@ int main(int argc, char** argv, char** env) {
                 i = 0;
                 irq = false;
             }
+        }
+
+        if (skip_cycle && (obj == 0 || ix_op > 0)) {
+            input_error(lineno, "Previously skipped cycle", line);
         }
 
         // i == cycles
@@ -484,6 +492,7 @@ int main(int argc, char** argv, char** env) {
         }
 
         if (ix_op < 2) {
+            // Read or write.
             if (obj <= 1) {
                 // Reg or port
                 out << format(fmt, cycles_spent + cycles, ops[ix_op], addr_name, data);
