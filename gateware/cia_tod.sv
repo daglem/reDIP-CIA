@@ -38,7 +38,7 @@ module cia_tod (
     cia::tod_t  cnext;      // Next clock update
     cia::tod_t  clatch;     // Latched clock
     logic       alarm_eq;   // TOD alarm
-    logic       alarm_eq_prev = 1;  // Initialize to 1 in case of short reset
+    logic       alarm_eq_prev;
     logic [1:0] jc2;        // Two-bit Johnson counter dividing PHI2 by 4
     logic       phi20;      // PHI2/4
     logic       phi20_up;
@@ -226,8 +226,7 @@ module cia_tod (
             ts_up   <= ~ts_prev & ts;
             ts_prev <= ts;
         end else if (phi2_dn) begin
-            // Note extra check for res to handle short resets in simulation.
-            if ((jc3_refresh && ~tod_start) || res) begin
+            if (jc3_refresh && ~tod_start) begin
                 jc3   <= '0;
                 jc3_o <= 0;
             end

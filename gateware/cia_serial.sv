@@ -63,7 +63,7 @@ module cia_serial (
     cia::reg4_t sr_cnt; // 4 bit Johnson counter, counting 8 bit shifts
     cia::reg4_t sr_cnt_out;
     logic       sr_done;
-    logic       sr_done_prev = 1;
+    logic       sr_done_prev;
 
     always_comb begin
         we_sdr = we && addr == 'hC;

@@ -38,7 +38,6 @@ module cia_interrupt (
     logic [4:0] mask;
     logic [4:0] sources_prev;  // For MOS6526 delay
     logic [4:0] sources_model;
-    logic       wr_mask;
     logic       rd_flags;
     logic       rd_or_res;
     logic       ir_set;
@@ -48,8 +47,6 @@ module cia_interrupt (
     logic       irq_prev;
 
     always_comb begin
-        wr_mask = we && addr == 'hD && phi2_dn;
-
         rd_or_res = rd_flags | res;
 
         sources_model = model == cia::MOS6526 ? sources_prev : sources;
@@ -88,20 +85,17 @@ module cia_interrupt (
         if (phi2_up) begin
             ir_n_prev  <= ir_n;
             irq_prev   <= irq;
-        end
 
-        // FIXME
-        // Always update in order to handle short resets in cia_serial
-        // simulation.
-        flags_prev <= flags;
-
-        if (res) begin
-            mask <= '0;
-        end else if (wr_mask) begin
-            mask <= data[7] ? mask | data[4:0] : mask & ~data[4:0];
+            flags_prev <= flags;
         end
 
         if (phi2_dn) begin
+            if (res) begin
+                mask <= '0;
+            end else if (we && addr == 'hD) begin
+                mask <= data[7] ? mask | data[4:0] : mask & ~data[4:0];
+            end
+
             rd_flags <= rd && addr == 'hD;
         end
     end
