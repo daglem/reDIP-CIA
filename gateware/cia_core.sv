@@ -89,7 +89,12 @@ module cia_core (
         .clk       (clk),
         .res       (1'b0),
         .phi2_dn   (phi2_dn),
+`ifdef VERILATOR
+        // Emulate open drain pad otherwise handled in cia_io.sv
+        .pad_i     (bus_i.cnt & bus_o.cnt),
+`else
         .pad_i     (bus_i.cnt),
+`endif
         .posedge_o (cnt_up)
     );
 
@@ -182,7 +187,12 @@ module cia_core (
         .txmode  (regs.control.cra.spmode),
         .ta_int  (ta_int),
         .cnt_up  (cnt_up),
+`ifdef VERILATOR
+        // Emulate open drain pad otherwise handled in cia_io.sv
+        .sp_in   (bus_i.sp & bus_o.sp),
+`else
         .sp_in   (bus_i.sp),
+`endif
         .regs    (regs.sdr),
         .cnt_out (bus_o.cnt),
         .sp_out  (bus_o.sp),
