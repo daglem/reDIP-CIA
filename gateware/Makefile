@@ -5,7 +5,7 @@ MOD = $(TOP).sv \
 	bcd_add.sv \
 	bcd_update.sv \
 	cia_io.sv \
-	cia_negedge.sv \
+	cia_edgedet.sv \
 	cia_ports.sv \
 	cia_timer.sv \
 	cia_tod.sv \

@@ -16,33 +16,34 @@
 
 `default_nettype none
 
-// Negative edge detector.
-module cia_negedge (
+// Synchronized positive edge detector.
+module cia_edgedet (
     input  logic clk,
     input  logic res,
     input  logic phi2_dn,
-    input  logic signal,
-    output logic trigger
+    input  logic pad_i,
+    output logic posedge_o
 );
 
-    logic signal_prev;
-    logic edgedet;
+    logic pad_i_prev = 1;
+    logic posedge_i;
 
     always_ff @(posedge clk) begin
-        // Synchronize with PHI2 in a similar fashion as the real CIA.
-        // The res signal is included for the TOD synchronizer, which keeps
+        // Synchronize input edges in a similar fashion as in the real CIA.
+        // The reset signal is included for the TOD synchronizer, which keeps
         // a detected edge until reset is released.
-        if (signal_prev & ~signal) begin
-            edgedet <= 1;
-        end else if (phi2_dn & ~res) begin
-            edgedet <= 0;
+        if (posedge_o & ~res) begin
+            // Any input edges are discarded until the next PHI1.
+            posedge_i <= 0;
+        end else if (~pad_i_prev & pad_i) begin
+            posedge_i <= 1;
         end
 
-        signal_prev <= signal;
+        pad_i_prev <= pad_i;
 
-        // Trigger signal ready for the next PHI2.
         if (phi2_dn) begin
-            trigger <= edgedet;
+            // Synchronized output available from PHI1.
+            posedge_o <= posedge_i;
         end
     end
 endmodule

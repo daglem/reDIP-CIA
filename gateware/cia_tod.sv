@@ -165,12 +165,12 @@ module cia_tod (
         regs = tod_sample ? clock : clatch;
     end
 
-    cia_negedge tod_posedge (
-        .clk     (clk),
-        .res     (res),
-        .phi2_dn (phi20_dn),
-        .signal  (~tod),  // Inverted signal for posedge
-        .trigger (tod_det)
+    cia_edgedet tod_posedge (
+        .clk       (clk),
+        .res       (res),
+        .phi2_dn   (phi20_dn),
+        .pad_i     (tod),
+        .posedge_o (tod_det)
     );
 
     always_ff @(posedge clk) begin

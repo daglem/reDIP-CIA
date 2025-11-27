@@ -85,21 +85,21 @@ module cia_core (
     end
 
     // CNT edge detector.
-    cia_negedge cnt_posedge (
-        .clk     (clk),
-        .res     (1'b0),
-        .phi2_dn (phi2_dn),
-        .signal  (~bus_i.cnt),  // Inverted signal for posedge
-        .trigger (cnt_up)
+    cia_edgedet cnt_posedge (
+        .clk       (clk),
+        .res       (1'b0),
+        .phi2_dn   (phi2_dn),
+        .pad_i     (bus_i.cnt),
+        .posedge_o (cnt_up)
     );
 
     // /FLAG edge detector.
-    cia_negedge flag_negedge (
-        .clk     (clk),
-        .res     (1'b0),
-        .phi2_dn (phi2_dn),
-        .signal  (bus_i.flag_n),
-        .trigger (flag_int)
+    cia_edgedet flag_negedge (
+        .clk       (clk),
+        .res       (1'b0),
+        .phi2_dn   (phi2_dn),
+        .pad_i     (~bus_i.flag_n),  // Inverted signal for posedge
+        .posedge_o (flag_int)
     );
 
     // I/O ports.
