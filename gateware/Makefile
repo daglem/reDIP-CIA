@@ -42,9 +42,14 @@ $(TOP).json: $(SRC) Makefile
 prog: $(TOP).bin
 	iceprog $<
 
+SIM_EMULATOR ?= 0
+ifeq "$(SIM_EMULATOR)" "1"
+SIM_OPTS = -DTOD_PHI20_NODELAY -DTOD_INT_NODELAY
+endif
+
 sim:
-	verilator --Mdir sim_trace -DVM_TRACE -Wno-CASEINCOMPLETE --timescale "1us/1ns" --trace-fst --trace-structs --trace-underscore --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
-	verilator --Mdir sim_log -Wno-CASEINCOMPLETE --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
+	verilator --Mdir sim_trace $(SIM_OPTS) -DVM_TRACE -Wno-CASEINCOMPLETE --timescale "1us/1ns" --trace-fst --trace-structs --trace-underscore --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
+	verilator --Mdir sim_log $(SIM_OPTS) -Wno-CASEINCOMPLETE --clk clk --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build -Icells_sim cia_pkg.sv cia_core.sv --top cia_core cia_core_sim.cpp -o cia_sim
 
 clean:
 	rm -rf $(TOP).json $(TOP).asc $(TOP).bin sim_trace sim_log

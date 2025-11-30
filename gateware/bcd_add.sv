@@ -17,8 +17,8 @@
 `default_nettype none
 
 module bcd_add #(
-    parameter  MAX = 9,
-    localparam WID = $clog2(MAX + 1)
+    parameter MAX = 9,
+    parameter WID = $clog2(MAX + 1)
 )(
     input  logic [WID-1:0] din,
     input  logic           cin,

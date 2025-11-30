@@ -161,6 +161,7 @@ module cia_core (
     // Time Of Day.
     cia_tod tod (
         .clk     (clk),
+        .phi2    (bus_i.phi2),
         .phi2_up (phi2_up),
         .phi2_dn (phi2_dn),
         .res     (res),
@@ -169,7 +170,7 @@ module cia_core (
         .addr    (bus_i.addr),
         .data    (bus_i.data),
         .tod     (bus_i.tod),
-        .todin   (regs.control.cra.todin),
+        .tod50hz (regs.control.cra.todin),
         .w_alarm (regs.control.crb.alarm),
         .regs    (regs.tod),
         .tod_int (tod_int)

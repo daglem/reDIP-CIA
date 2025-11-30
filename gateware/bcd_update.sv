@@ -17,8 +17,8 @@
 `default_nettype none
 
 module bcd_update #(
-    parameter  MAX = 9,
-    localparam WID = $clog2(MAX + 1)
+    parameter MAX = 9,
+    parameter WID = $clog2(MAX + 1)
 )(
     input  logic           we,    // Write enable
     input  logic [WID-1:0] win,   // Write data
@@ -29,5 +29,5 @@ module bcd_update #(
 );
 
     // Write has priority over add.
-    bcd_add #(MAX) bcd_new (we ? win : din, cin & ~we, dout, cout);
+    bcd_add #(MAX, WID) bcd_new (we ? win : din, cin & ~we, dout, cout);
 endmodule

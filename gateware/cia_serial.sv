@@ -58,7 +58,9 @@ module cia_serial (
     logic tx_sp_next;
     logic rx_clk;       // Reception clock from CNT pad edge detector
     logic sr_clk;       // Shift register clock
+    /* verilator lint_off UNUSEDSIGNAL */
     logic sr_clk_prev;
+    /* verilator lint_on UNUSEDSIGNAL */
 
     cia::reg4_t sr_cnt; // 4 bit Johnson counter, counting 8 bit shifts
     cia::reg4_t sr_cnt_out;
