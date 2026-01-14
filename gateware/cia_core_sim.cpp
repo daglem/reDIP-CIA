@@ -91,7 +91,7 @@ static void parse_args(int argc, char** argv) {
                 if (tod_frequency < 1 || tod_frequency > 1000000) {
                     goto fail;
                 }
-                tod_timestep = 1e12/tod_frequency/2;
+                tod_timestep = uint64_t(1e12/tod_frequency/2);
             } catch (exception const&) {
                 goto fail;
             }

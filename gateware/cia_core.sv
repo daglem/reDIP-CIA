@@ -65,9 +65,6 @@ module cia_core (
         phi2_up = ~phi2_prev &  bus_i.phi2;
         phi2_dn =  phi2_prev & ~bus_i.phi2;
 
-        // Combine FPGA and CIA bus resets.
-        res = rst | ~bus_i.res_n;
-
         // The signals are delayed by one FPGA cycle (using phi2_prev instead of phi2).
         rd = phi2_prev & ~bus_i.cs_n &  bus_i.r_w_n;
         we = phi2_prev & ~bus_i.cs_n & ~bus_i.r_w_n;
@@ -82,6 +79,9 @@ module cia_core (
 
     always_ff @(posedge clk) begin
         phi2_prev <= bus_i.phi2;
+
+        // Combine FPGA and CIA bus resets.
+        res <= rst | ~bus_i.res_n;
     end
 
     // CNT edge detector.

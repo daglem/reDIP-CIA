@@ -49,7 +49,11 @@ module cia_control (
         crb_w = we && addr == 'hF;
 
         // Multiplexers for register updates.
-        // FIXME: How come the previous runmode must be taken into account?
+        // cra.start and cra.runmode are both latched by PHI1.
+        // Since ~cra.runmode is injected into the continuous refresh of
+        // cra.start, there is a race where a slightly delayed change
+        // of cra.runmode from 1 to 0 at the start of PHI1 causes
+        // cra.start to be cleared for an extra cycle.
         // Test: vice-testprogs/general/Lorenz-2.15/src/flipos.prg
         ctrl_next.cra        = cra_w ? data : ctrl.cra;
         ctrl_next.cra.start &= ~((ctrl.cra.runmode | ctrl_next.cra.runmode) & ta_ufl);

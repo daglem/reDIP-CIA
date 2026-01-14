@@ -62,8 +62,10 @@ module cia_serial (
 
     cia::reg4_t sr_cnt; // 4 bit Johnson counter, counting 8 bit shifts
     cia::reg4_t sr_cnt_out;
+    logic       sr_cnt_shift;
     logic       sr_done;
     logic       sr_done_prev;
+    logic       phi2_dn_prev;
 
     always_comb begin
         we_sdr = we && addr == 'hC;
@@ -75,7 +77,7 @@ module cia_serial (
         sp_res = res | (txmode_prev ^ txmode);
 
         // Output of Johnson counter.
-        sp_int  = ~sr_done_prev & (sr_done | sp_res);
+        sp_int = ~sr_done_prev & sr_done;
 
         // TX init - SR latch.
         if      (we_sdr_prev & txmode) tx_init = 1;
@@ -157,30 +159,38 @@ module cia_serial (
         end
 
         if (phi2_up) begin
-            // Clock Johnson counter, counting 8 bit shifts.
-            if (sr_clk) begin
-                // Shift in.
-                sr_cnt <= sp_res ? 4'b1 : { sr_cnt_out[2:0], ~sr_cnt_out[3] };
-            end else if (sr_clk_prev) begin
-                // Shift out.
-                if (sp_res) begin
-                    // Shift in was still active during the previous phi1;
-                    // take a possible reset into account.
-                    sr_cnt     <= 4'b1;
-                    sr_cnt_out <= 4'b1;
-                end else begin
-                    sr_cnt_out <= sr_cnt;
-                end
-            end else if (sp_res) begin
-                // Reset (refresh in original chip).
+            sr_cnt_shift <= sr_clk;
+        end
+
+        // Clock Johnson counter, counting 8 bit shifts.
+        if (sr_cnt_shift) begin
+            // Shift in.
+            sr_cnt <= sp_res ? 4'b1 : { sr_cnt_out[2:0], ~sr_cnt_out[3] };
+        end else begin
+            // sr_clk_prev, sr_clk, and sp_res are all latched by PHI1.
+            // There is thus a race between counter refresh and reset,
+            // so it would seem counter reset is not necessarily deterministic.
+            // It is possible that gate delays should be taken into consideration.
+            // On the other hand, VICE cia-sdr-icr tests seem to indicate that
+            // sr_clk_prev is not taken into consideration at all(!)
+            // FIXME: Determine what is actually going on in the original chip.
+            // if (~(sr_clk_prev | sr_clk) & sp_res) begin
+            if (~sr_clk & sp_res) begin
+                // Reset (and refresh in original chip).
                 sr_cnt     <= '0;
                 sr_cnt_out <= '0;
+            end else begin
+                // Shift out.
+                sr_cnt_out <= sr_cnt;
             end
         end
 
-        if (phi2_dn) begin
-            sr_done_prev <= sr_done | sp_res;
-            sr_done      <= ~|sr_cnt_out;
+        phi2_dn_prev <= phi2_dn;
+
+        if (phi2_dn_prev) begin
+            // Delayed one FPGA cycle to pick up change of sp reset.
+            sr_done_prev <= sr_done;
+            sr_done      <= ~|sr_cnt_out | sp_res;
         end
     end
 endmodule
