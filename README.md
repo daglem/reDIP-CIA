@@ -28,3 +28,14 @@ All FPGA header I/O is 5V tolerant, and can drive 5V TTL.
 ### SPI / programming header:
 
 A separate header footprint is provided for (Q)SPI flash programming, with pinout borrowed from the [iCEBreaker Bitsy](https://github.com/icebreaker-fpga/icebreaker).
+
+## MOS 6526/8521 CIA compatibility
+
+The board is fully pin compatible with the venerable MOS 6526/8521 CIA chips.
+
+Cycle accurate emulation of the MOS 8521 chip has been implemented in [gateware](gateware/).
+
+## Thanks
+
+The gateware implementation would not have been possible without the [outstanding work](http://forum.6502.org/viewtopic.php?f=4&t=7418)
+on the MOS 8521 chip by Frank "androSID" Wolf and Dieter "ttlworks" Müller.
