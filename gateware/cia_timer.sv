@@ -40,7 +40,9 @@ module cia_timer (
     logic reload;           // Reload counter from latch
     logic reload_prev;
     logic count_prev;
+    logic intr_up;
     logic toggle;           // Timer underflow toggle
+    logic toggle_prev;
     logic pulse;            // Timer underflow pulse
 
     always_comb begin
@@ -59,11 +61,14 @@ module cia_timer (
         regs.lo = counter[ 7:0];
         regs.hi = counter[15:8];
 
-        // Timer interrupt.
-        intr = pulse;
+        // PB6 / PB7 timer output toggle.
+        if      ((~start_prev & ctrl.start) | (intr_up & toggle_prev)) toggle = 1;
+        else if (res | (intr_up & ~toggle_prev))                       toggle = 0;
+        else                                                           toggle = toggle_prev;
 
         // Timer output, which may appear on PB6 / PB7.
-        pb = ~(ctrl.toggle ? toggle : pulse);
+        pulse = intr;
+        pb    = ctrl.toggle ? toggle : pulse;
     end
 
     // Writes to timer latch.
@@ -89,19 +94,13 @@ module cia_timer (
 
     always_ff @(posedge clk) begin
         if (phi2_dn) begin
-            if (res) begin
-                toggle <= 1'b0;
-            end else if (~start_prev & ctrl.start) begin
-                toggle <= 1'b1;
-            end else if (~pulse & ufl) begin
-                toggle <= ~toggle;
-            end
-
             hi_w_prev   <= hi_w;
             start_prev  <= ctrl.start;
             reload_prev <= reload;
             count_prev  <= ctrl.count;
-            pulse       <= ufl;
+            intr        <= ufl;
+            intr_up     <= ~intr & ufl;
+            toggle_prev <= toggle;
         end
     end
 endmodule
