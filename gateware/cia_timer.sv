@@ -62,9 +62,9 @@ module cia_timer (
         regs.hi = counter[15:8];
 
         // PB6 / PB7 timer output toggle.
-        if      ((~start_prev & ctrl.start) | (intr_up & toggle_prev)) toggle = 1;
-        else if (res | (intr_up & ~toggle_prev))                       toggle = 0;
-        else                                                           toggle = toggle_prev;
+        if      ((~start_prev & ctrl.start) | (intr_up & ~toggle_prev)) toggle = 1;
+        else if (res | (intr_up & toggle_prev))                         toggle = 0;
+        else                                                            toggle = toggle_prev;
 
         // Timer output, which may appear on PB6 / PB7.
         pulse = intr;

@@ -255,21 +255,21 @@ static void read_port(Vcia_core* core, int ix_port, int val) {
         cerr << "already in phi2 on read_port" << endl;
     }
     int i, o;
+    bool open_collector;
     if (ix_port == 0) {  // PA
         i = 12;
         o = 28;
+        open_collector = true;
     } else {  // PB
         i = 4;
         o = 20;
+        open_collector = false;
     }
 
-    /*
     // Read output bits back in, other bits from input.
     uint8_t ddr = core->bus_o >> (o - 16);
-    uint8_t in = ((core->bus_o >> o) & ddr) | (val & ~ddr);
+    uint8_t in = ((core->bus_o >> o) & ddr & (open_collector ? val : 0xff)) | (val & ~ddr);
     core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(in) << i);
-    */
-    core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(val) << i);
 }
 
 
