@@ -28,6 +28,15 @@
 // * RES, SP, CNT, TOD, FLAG: Pin input (R)
 // * IRQ, SP, CNT, PC: Pin output (W)
 //
+// MOS chips are latched designs, internally using a two phase clock.
+// To match the sequence of operations in the silicon and in this simulation,
+// operations within the same cycle must be ordered as follows:
+//
+//   1. Pin and port outputs (PHI1 - after falling edge of PHI2)
+//   2. Pin and port inputs (PHI1 - before rising edge of PHI2)
+//   3. Register read/write (PHI2 - before falling edge of PHI2)
+//   4. Interrupt (PHI2 - before falling edge of PHI2, sampled by CPU)
+//
 // No processing is done for interrupts (I), however a line containing the ICR
 // register address and value is output for every interrupt, in order to
 // facilitate comparison with the input file.
@@ -176,48 +185,34 @@ static void clk2(Vcia_core* core) {
 
 static bool phi2_hi = false;
 
-static bool phi2(Vcia_core* core) {
-    // Were we were already in phi2?
-    bool rc = phi2_hi;
-
-    if (!phi2_hi) {
-        core->bus_i |= (1LL << 35);  // PHI2 high
-        clk2(core);
-        phi2_hi = true;
+static void phi2(Vcia_core* core) {
+    if (phi2_hi) {
+        cerr << "Error - phi2(core) called twice" << endl;
+        exit(EXIT_FAILURE);
     }
 
-    return rc;
+    core->bus_i |= (1LL << 35);  // PHI2 high
+    clk2(core);
+    phi2_hi = true;
 }
 
 static void phi1(Vcia_core* core) {
     core->bus_i &= ~(1LL << 35);  // PHI2 low
-    clk2(core);
+    clk(core);
     core->bus_i |= (0b11LL << 32);  // Release /CS and /W
+    clk(core);
     phi2_hi = false;
 }
 
 static void read_reg(Vcia_core* core, int addr, int& val) {
     core->bus_i = (core->bus_i & 0xfffffff) | (0b1101LL << 32) | (uint64_t(addr) << 28);
-    if (phi2(core)) {
-        // We were already in phi2, so we must call eval() to set the address.
-        core->eval();
-        cerr << "already in phi2 on read" << endl;
-    }
+    phi2(core);
     val = (core->bus_o >> 36) & 0xff;
 }
 
 static void write_reg(Vcia_core* core, int addr, int data) {
     core->bus_i = (core->bus_i & 0xfffff) | (0b1100LL << 32) | (uint64_t(addr) << 28) | (uint64_t(data) << 20);
-    if (phi2(core)) {
-        // We were already in phi2, so we must call eval() to set the address / data.
-        core->eval();
-        cerr << "already in phi2 on write" << endl;
-    }
-    /*
-    core->bus_i = (core->bus_i & 0xfffffff) | (0b1101LL << 32) | (uint64_t(addr) << 28);
     phi2(core);
-    core->bus_i |= (uint64_t(data) << 20);
-    */
 }
 
 static array<string, 3> ops = { "W", "R", "I" };
@@ -251,43 +246,34 @@ static void write_port(Vcia_core* core, int ix_port, int& val) {
 }
 
 static void read_port(Vcia_core* core, int ix_port, int val) {
-    if (phi2_hi) {
-        cerr << "already in phi2 on read_port" << endl;
-    }
     int i, o;
-    bool open_collector;
+    bool open_drain;
     if (ix_port == 0) {  // PA
         i = 12;
         o = 28;
-        open_collector = true;
+        open_drain = true;
     } else {  // PB
         i = 4;
         o = 20;
-        open_collector = false;
+        open_drain = false;
     }
 
     // Read output bits back in, other bits from input.
     uint8_t ddr = core->bus_o >> (o - 16);
-    uint8_t in = ((core->bus_o >> o) & ddr & (open_collector ? val : 0xff)) | (val & ~ddr);
+    uint8_t in = open_drain ?
+        ((core->bus_o >> o) | ~ddr) & val :
+        ((core->bus_o >> o) & ddr) | (val & ~ddr);
     core->bus_i = (core->bus_i & ~(0xffLL << i)) | (uint64_t(in) << i);
 }
 
 
 static bool irq_n_prev = true;
 
-static bool interrupt(Vcia_core* core, int& val) {
+static bool interrupt(Vcia_core* core) {
     bool irq_n = core->bus_o & 1;
     bool irq = irq_n_prev && !irq_n;
     irq_n_prev = irq_n;
-
-    if (!irq) {
-        return false;
-    }
-
-    // Read ICR register via debug-only port.
-    val = core->icr;
-
-    return true;
+    return irq;
 }
 
 void input_error(int lineno, string msg, string input) {
@@ -420,92 +406,70 @@ int main(int argc, char** argv, char** env) {
     constexpr const char* fmt_pin = "{} {} {} {}\n";
     //constexpr string_view fmt{"{} {} {} {:02X}"};
 
+    // First half cycle.
+    phi1(core);
+
     int cycles_spent = 0;
-    bool skip_cycle = false;
     for (int lineno = 1; getline(in, line); lineno++) {
-        bool irq = false;
-        int flags;
         int cycles, ix_op, addr, data;
         string addr_name;
         int obj = parse_line(lineno, line, cycles, ix_op, addr_name, addr, data);
 
-        for (int i = 0; i < cycles;) {
-            if (!skip_cycle) {
+        for (int i = 0; i < cycles; i++) {
+            if (!phi2_hi) {
                 phi2(core);
-                phi1(core);
             }
-            skip_cycle = false;
-            i++;
-
-            irq = interrupt(core, flags);
-            if (irq && i < cycles) {
-                out << format(fmt, cycles_spent + i, "I", "D", flags);
+            if (interrupt(core)) {
+                out << format(fmt, cycles_spent + i, "I", "D", core->icr);
                 cycles_spent = 0;
                 cycles -= i;
                 i = 0;
-                irq = false;
             }
-        }
-
-        if (skip_cycle && (obj == 0 || ix_op > 0)) {
-            input_error(lineno, "Previously skipped cycle", line);
+            phi1(core);
         }
 
         // i == cycles
         if (obj == 0) {
             // Register
             if (ix_op < 2) {
+                // Note that these functions call phi2(core)
                 if (ix_op == 0) {
                     write_reg(core, addr, data);
                 } else {
                     read_reg(core, addr, data);
                 }
+                out << format(fmt, cycles_spent + cycles, ops[ix_op], addr_name, data);
             } else {
                 // Interrupt
                 cycles_spent += cycles;
+                continue;
             }
         } else if (obj == 1) {
             // Port
             if (ix_op == 0) {
-                // Currently not used.
-                if (!skip_cycle) {
-                    phi2(core);
-                    phi1(core);
-                    skip_cycle = true;
-                }
                 write_port(core, addr, data);
             } else {
                 read_port(core, addr, data);
             }
+            out << format(fmt, cycles_spent + cycles, ops[ix_op], addr_name, data);
         } else {
             // Pin
             if (ix_op == 0) {
-                if (!skip_cycle) {
-                    phi2(core);
-                    phi1(core);
-                    skip_cycle = true;
-                }
                 write_pin(core, addr, data);
             } else {
                 read_pin(core, addr, data);
             }
+            out << format(fmt_pin, cycles_spent + cycles, ops[ix_op], addr_name, data);
         }
 
-        if (ix_op < 2) {
-            // Read or write.
-            if (obj <= 1) {
-                // Reg or port
-                out << format(fmt, cycles_spent + cycles, ops[ix_op], addr_name, data);
-            } else {
-                // Pin
-                out << format(fmt_pin, cycles_spent + cycles, ops[ix_op], addr_name, data);
-            }
-            cycles_spent = 0;
-        }
+        cycles_spent = 0;
+    }
 
-        if (irq) {
-            out << format(fmt, cycles_spent, "I", "D", flags);
-            cycles_spent = 0;
+    // Check for any interrupt in the final half cycle.
+    if (!phi2_hi) {
+        phi2(core);
+        if (interrupt(core)) {
+            out << format(fmt, cycles_spent, "I", "D", core->icr);
         }
     }
 
