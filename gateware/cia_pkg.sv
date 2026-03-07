@@ -26,9 +26,10 @@ package cia;
     typedef logic  [2:0] reg3_t;   // BCD count
     typedef logic  [1:0] reg2_t;
 
-    typedef enum logic [0:0] {
+    typedef enum logic [1:0] {
         MOS6526,
-        MOS8521
+        MOS8521,
+        MOS8520
     } model_t;
 
     typedef struct packed {
