@@ -71,7 +71,7 @@ static string input_filename;
 static string output_filename = "cia_sim.mosio";
 static uint64_t tod_frequency = 0; // In Hz
 static uint64_t tod_timestep = 0;  // In picoseconds
-static int cia_model = 1;  // MOS8521
+static int cia_model = 2;  // MOS8521
 
 static struct option long_opts[] = {
     { "input",         required_argument, 0, 'i' },
@@ -106,8 +106,8 @@ static void parse_args(int argc, char** argv) {
             }
             break;
         case 'm':
-            if      (val == "6526") cia_model = 0;
-            else if (val == "8521") cia_model = 1;
+            if      (val == "6526") cia_model = 1;
+            else if (val == "8521") cia_model = 2;
             else                    goto fail;
             break;
         case 'h':
@@ -150,9 +150,9 @@ Options:
 }
 
 
-// 20.833ns = 20833ps between each edge of the 24MHz FPGA clock.
-// In simulation a 4MHz clock is sufficient (2 cycles between PHI2 edges),
-// i.e. 250ns between each edge.
+// The time between each edge of a 24MHz clock is 1/24Mz/2 = 20.833ns = 20833ps.
+// In simulation a 4MHz clock is sufficient (two cycles between PHI2 edges),
+// i.e. 1/4MHz/2 = 125ns between each edge.
 const uint64_t timestep = 125;
 
 uint64_t tod_count = 0;
@@ -387,6 +387,7 @@ int main(int argc, char** argv, char** env) {
     auto core = new Vcia_core;
 
     core->model = cia_model;
+    core->icr65 = 0;
     core->clk   = 0;
     core->rst   = 0;
     core->bus_i = 0;

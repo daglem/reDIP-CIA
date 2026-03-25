@@ -18,6 +18,7 @@
 
 module cia_interrupt (
     input  cia::model_t model,
+    input  logic[1:0]   icr65,
     input  logic        clk,
     input  logic        phi2_up,
     input  logic        phi2_dn,
@@ -49,7 +50,9 @@ module cia_interrupt (
     logic       ir_set_prev;  // For MOS 6526 delay
     logic       ir_set_model;
     cia::reg8_t icr;
+/* verilator lint_off UNUSEDSIGNAL */
     cia::reg8_t icr_prev;
+/* verilator lint_on UNUSEDSIGNAL */
     logic       icr7;
     logic       icr7_prev;
     logic       irq;
@@ -77,6 +80,7 @@ module cia_interrupt (
         ir_set = |(flags & mask);
         unique case (model)
           cia::MOS6526: ir_set_model = ir_set_prev;
+          cia::NA,
           cia::MOS8521: ir_set_model = ir_set_phi2;
           cia::MOS8520: ir_set_model = ir_set;
         endcase
@@ -97,7 +101,7 @@ module cia_interrupt (
         // considerable capacitance delay due to their length, and are driven
         // by the positive output of weak inverters.
         regs  = icr;
-        regs |= (model == cia::MOS6526) ? { icr_prev[7], 7'b0 } : icr_prev;
+        regs |= { icr_prev[7], icr65, (model == cia::MOS6526) ? 5'b0 : icr_prev[4:0] };
     end
 
     always_ff @(posedge clk) begin

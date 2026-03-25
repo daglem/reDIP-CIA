@@ -6,8 +6,8 @@ The reDIP CIA FPGA gateware provides cycle exact CIA emulation for the
 [reDIP CIA](https://github.com/daglem/reDIP-CIA) hardware.
 
 The gateware implementation is based on the excellent schematics of the
-[MOS 8520](https://6502.org/forum/viewtopic.php?t=7368) and
-[MOS 8521](http://forum.6502.org/viewtopic.php?f=4&t=7418) chips provided by
+[MOS 8520](https://6502.org/forum/viewtopic.php?f=4&t=7368) and
+[MOS 8521](https://6502.org/forum/viewtopic.php?f=4&t=7418) chips provided by
 Frank "androSID" Wolf and Dieter "ttlworks" Müller.
 
 By default, the MOS 8521 chip is emulated. The gateware can also be configured

@@ -30,6 +30,12 @@ module ice40_init (
         .S0   (image[0])
     );
 
+`ifdef TESTBENCH
+    // A 24MHz clock implies a time step of 1/24MHz/2 = 20.833ns.
+    // We simulate using a time step of 20ns, i.e. a 25MHz clock.
+    initial clk_24 = '0;
+    always #20 clk_24 = ~clk_24;
+`else
     // HFOSC: 48MHz -> 24MHz
     /* verilator lint_off PINMISSING */
     SB_HFOSC #(
@@ -40,6 +46,7 @@ module ice40_init (
         .CLKHF(clk_24)
     );
     /* verilator lint_on PINMISSING */
+`endif
 
     // Hold reset for a minimum of 10us (minimum 240 cycles at 24MHz),
     // to allow BRAM to power up.

@@ -171,12 +171,12 @@ module cia_cnt (
         end
     end
 
-    always_comb begin
 `ifdef TOD_INT_NODELAY
+    always_comb begin
         // In order to match emulators which do not correctly delay the alarm.
         alarm_eq = counter == alarm;
-`endif
     end
+`endif
 
     always_ff @(posedge clk) begin
         phi20_prev <= phi20;

@@ -35,9 +35,10 @@ A separate header footprint is provided for (Q)SPI flash programming, with
 pinout borrowed from the
 [iCEBreaker Bitsy](https://github.com/icebreaker-fpga/icebreaker).
 
-## MOS 6526/8521 CIA compatibility
+## MOS 6526/8521 and MOS 8520 CIA compatibility
 
-The board is fully pin compatible with the venerable MOS 6526/8521 CIA chips.
+The board is fully pin compatible with the venerable MOS 6526/8521 and MOS 8520
+CIA chips.
 
 Cycle accurate emulation of the MOS 6526/8521 and MOS 8580 CIA chips has been
 implemented in [gateware](gateware/).
@@ -45,6 +46,6 @@ implemented in [gateware](gateware/).
 ## Thanks
 
 The gateware implementation would not have been possible without the
-outstanding work on the [MOS 8520](https://6502.org/forum/viewtopic.php?t=7368)
-and [MOS 8521](http://forum.6502.org/viewtopic.php?f=4&t=7418) chips by
+outstanding work on the [MOS 8520](https://6502.org/forum/viewtopic.php?f=4&t=7368)
+and [MOS 8521](https://6502.org/forum/viewtopic.php?f=4&t=7418) chips by
 Frank "androSID" Wolf and Dieter "ttlworks" Müller.

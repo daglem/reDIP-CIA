@@ -18,6 +18,7 @@
 
 module cia_core (
     input  cia::model_t model,
+    input  logic[1:0]   icr65,
     input  logic        clk,
     input  logic        rst,
     input  cia::bus_i_t bus_i,
@@ -227,6 +228,7 @@ module cia_core (
     // Interrupt Control.
     cia_interrupt interrupt (
         .model   (model),
+        .icr65   (icr65),
         .clk     (clk),
         .phi2_up (phi2_up),
         .phi2_dn (phi2_dn),

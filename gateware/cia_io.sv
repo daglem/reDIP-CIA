@@ -16,12 +16,19 @@
 
 `default_nettype none
 
+`ifdef __ICARUS__
+`define NO_ICE40_DEFAULT_ASSIGNMENTS
+`elsif VERILATOR
+`define NO_ICE40_DEFAULT_ASSIGNMENTS
+`endif
+
 /* verilator lint_off PINMISSING */
 
 module cia_io (
+    input  cia::model_t model,
     // FPGA clock and reset.
     input  logic        clk,
-    // I/O pads.
+    // CIA I/O pads.
     inout  logic        pad_phi2,
     inout  logic        pad_res_n,
     inout  logic        pad_cs_n,
@@ -36,9 +43,14 @@ module cia_io (
     inout  logic        pad_cnt,
     inout  logic        pad_sp,
     inout  logic        pad_irq_n,
-    // Internal interfaces.
+    // SPI flash CS pad.
+    inout  logic        pad_spi_cs_n,
+    // CIA internal bus I/O.
     output cia::bus_i_t bus_i,
-    input  cia::bus_o_t bus_o
+    input  cia::bus_o_t bus_o,
+    // SPI flash I/O.
+    output cia::spi_i_t spi_i,
+    input  cia::spi_o_t spi_o
 );
 
     // Define pin functions for the SB_IO PIN_TYPE parameter by ORing together
@@ -76,6 +88,8 @@ module cia_io (
     logic       tod_x,    tod;
     logic       flag_n_x, flag_n;
 
+    logic       spi_bm;  // SPI is bus master
+
     always_comb begin
         // phi1 is used to hold signals after the falling edge of phi2.
         phi1_io      = ~phi2_io;
@@ -90,6 +104,9 @@ module cia_io (
         bus_i.sp     = sp;
         bus_i.tod    = tod;
         bus_i.flag_n = flag_n;
+
+        // SPI_SIO1 (flash SO - Serial Output) is shared with PB6.
+        spi_i.si     = spi_bm & pb_x[6];
     end
 
     always_ff @(posedge clk) begin
@@ -113,11 +130,14 @@ module cia_io (
         // so we only add one extra register stage wrt. metastability.
         res_n  <= res_n_x;
         pa     <= pa_x;
-        pb     <= pb_x;
+        if (~spi_bm)
+            pb <= pb_x;
         cnt    <= cnt_x;
         sp     <= sp_x;
         tod    <= tod_x;
         flag_n <= flag_n_x;
+
+        spi_bm <= spi_o.bme;
     end
 
     // phi2_io is configured as a simple input pin (not registered, i.e. without
@@ -137,7 +157,7 @@ module cia_io (
         .PIN_TYPE     (`PIN_IN_REG)
     ) io_res (
         .PACKAGE_PIN  (pad_res_n),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE (1'b1),
 `endif
         .INPUT_CLK    (clk),
@@ -154,7 +174,7 @@ module cia_io (
     ) io_cs_n (
         .PACKAGE_PIN       (pad_cs_n),
         .LATCH_INPUT_VALUE (phi1_io),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE      (1'b1),
 `endif
         .INPUT_CLK         (clk),
@@ -167,7 +187,7 @@ module cia_io (
     ) io_r_w_n (
         .PACKAGE_PIN       (pad_r_w_n),
         .LATCH_INPUT_VALUE (phi1_io),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE      (1'b1),
 `endif
         .INPUT_CLK         (clk),
@@ -180,7 +200,7 @@ module cia_io (
     ) io_addr[3:0] (
         .PACKAGE_PIN       (pad_addr),
         .LATCH_INPUT_VALUE (phi1_io),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE      (1'b1),
 `endif
         .INPUT_CLK         (clk),
@@ -193,7 +213,7 @@ module cia_io (
     ) io_data[7:0] (
         .PACKAGE_PIN       (pad_data),
         .LATCH_INPUT_VALUE (phi1_io),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE      (1'b1),
 `endif
         .INPUT_CLK         (clk),
@@ -211,30 +231,37 @@ module cia_io (
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_pa[7:0] (
         .PACKAGE_PIN   (pad_pa),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE  (1'b1),
 `endif
         .INPUT_CLK     (clk),
         .OUTPUT_CLK    (clk),
-        .OUTPUT_ENABLE (bus_o.ports.ddra & ~bus_o.ports.pra),
+        .OUTPUT_ENABLE ((model == cia::MOS8520) ? bus_o.ports.ddra : bus_o.ports.ddra & ~bus_o.ports.pra),
         .D_IN_0        (pa_x),
-        .D_OUT_0       (1'b0)
+        .D_OUT_0       ((model == cia::MOS8520) ? bus_o.ports.pra : 8'b0)
     );
 
     // PB0-PB7 are push-pull.
     // NB! Open drain on the MOS8520.
+    // NB! Shared with flash pins as follows:
+    //   PB7 - SCK        (SPI_SCLK)
+    //   PB6 - SO         (SPI_SIO1)
+    //   PB5 - WP         (SPI_SIO2)
+    //   PB4 - HOLD/RESET (SPI_SIO3)
+    // We drive /WP and /HOLD high in case they aren't pulled up fast enough
+    // by the flash internal pullups.
     SB_IO #(
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_pb[7:0] (
         .PACKAGE_PIN   (pad_pb),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE  (1'b1),
 `endif
         .INPUT_CLK     (clk),
         .OUTPUT_CLK    (clk),
-        .OUTPUT_ENABLE (bus_o.ports.ddrb),
+        .OUTPUT_ENABLE (spi_o.bme ? 8'b10110000 : (model == cia::MOS8520) ? bus_o.ports.ddrb & ~bus_o.ports.prb : bus_o.ports.ddrb),
         .D_IN_0        (pb_x),
-        .D_OUT_0       (bus_o.ports.prb)
+        .D_OUT_0       (spi_o.bme ? { spi_o.sclk, 7'b0110000 } : (model == cia::MOS8520) ? 8'b0 : bus_o.ports.prb)
     );
 
     // /PC, /FLAG, CNT, SP, TOD, /IRQ.
@@ -242,23 +269,27 @@ module cia_io (
 
     // /PC is push-pull, output only.
     // NB! Open drain on the MOS8520.
+    // NB! Pullup to VCC on the MOS8520, which would have to be external.
+    // NB! Shared with flash pin SI (SPI_SIO0).
     SB_IO #(
-        .PIN_TYPE      (`PIN_IN_UNREG | `PIN_OUT_REG | `PIN_OE_ENABLED)
+        .PIN_TYPE      (`PIN_IN_UNREG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_pc_n (
         .PACKAGE_PIN   (pad_pc_n),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE  (1'b1),
 `endif
         .OUTPUT_CLK    (clk),
-        .D_OUT_0       (bus_o.pc_n)
+        .OUTPUT_ENABLE (spi_o.bme ? 1'b1 : (model == cia::MOS8520) ? ~bus_o.pc_n : 1'b1),
+        .D_OUT_0       (spi_o.bme ? spi_o.so : (model == cia::MOS8520) ? 1'b0 : bus_o.pc_n)
     );
 
     // /FLAG is input only.
+    // NB! Pullup to VCC on the MOS8520, which would have to be external.
     SB_IO #(
         .PIN_TYPE     (`PIN_IN_REG)
     ) io_flag_n (
         .PACKAGE_PIN  (pad_flag_n),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE (1'b1),
 `endif
         .INPUT_CLK    (clk),
@@ -266,11 +297,12 @@ module cia_io (
     );
 
     // TOD is input only.
+    // NB! Pullup to VCC on the MOS8520, which would have to be external.
     SB_IO #(
         .PIN_TYPE     (`PIN_IN_REG)
     ) io_tod (
         .PACKAGE_PIN  (pad_tod),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE (1'b1),
 `endif
         .INPUT_CLK    (clk),
@@ -282,7 +314,7 @@ module cia_io (
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_cnt (
         .PACKAGE_PIN   (pad_cnt),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE  (1'b1),
 `endif
         .INPUT_CLK     (clk),
@@ -297,7 +329,7 @@ module cia_io (
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_sp (
         .PACKAGE_PIN   (pad_sp),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE  (1'b1),
 `endif
         .INPUT_CLK     (clk),
@@ -312,12 +344,26 @@ module cia_io (
         .PIN_TYPE      (`PIN_IN_UNREG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_irq_n (
         .PACKAGE_PIN   (pad_irq_n),
-`ifdef VERILATOR
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
         .CLOCK_ENABLE  (1'b1),
 `endif
         .OUTPUT_CLK    (clk),
         .OUTPUT_ENABLE (~bus_o.irq_n),
         .D_OUT_0       (1'b0)
+    );
+
+    // /SPI_CS (flash /CS) is output only.
+    // Push-pull for fast rising edge.
+    SB_IO #(
+        .PIN_TYPE      (`PIN_IN_UNREG | `PIN_OUT_REG | `PIN_OE_REG)
+    ) io_spi_cs_n (
+        .PACKAGE_PIN   (pad_spi_cs_n),
+`ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
+        .CLOCK_ENABLE  (1'b1),
+`endif
+        .OUTPUT_CLK    (clk),
+        .OUTPUT_ENABLE (spi_o.bme),
+        .D_OUT_0       (spi_o.cs_n)
     );
 endmodule
 
