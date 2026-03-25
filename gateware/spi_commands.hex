@@ -1,0 +1,37 @@
+// Read and write of CIA model value using the following simple format
+// to send SPI command sequences to the flash chip and report status:
+//
+// control [SPI_command [A23-A16 A15-A8 A7-A0 [D7-D0]]] ...
+//
+// Where the control byte format is as follows:
+//
+// Bits
+//  7    1 = Repeat command until read data bit 0 = 0 (for command 05h)
+//  6    1 = Output data bit 0 to erase status bit (for command 05h after 20h)
+//  5    1 = Output data bit 0 to program status bit (for command 05h after 02h)
+//  4    1 = Read a single data byte at end of command
+//  3:0  Count of bytes in command
+//
+// The command sequence ends when control = 0.
+
+// BRAM offset = 0:
+// 1. 03h Read Data (first byte in 4K block #31)
+// 2. End
+14  03 01 F0 00
+00
+
+// BRAM offset = 6:
+// 1. 06h Write Enable
+// 2. 20h Block Erase (4K block #31)
+// 3. 05h Read Status Register 1, output BUSY bit to erase status bit, repeat until BUSY bit is cleared
+// 4. 06h Write Enable
+// 5. 02h Page Program (first byte in first page in 4K block #31)
+// 6. 05h Read Status Register 1, output BUSY bit to program status bit, repeat until BUSY bit is cleared
+// 7. End
+01  06
+04  20 01 F0 00
+D1  05
+01  06
+05  02 01 F0 00 FF  // Data byte (BRAM offset = 22) must be set to CIA model value
+B1  05
+00

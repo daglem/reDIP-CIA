@@ -18,6 +18,7 @@
 
 module cia_core (
     input  cia::model_t model,
+    input  logic[1:0]   icr65,
     input  logic        clk,
     input  logic        rst,
     input  cia::bus_i_t bus_i,
@@ -213,7 +214,8 @@ module cia_core (
         .data    (bus_i.data),
         .sources ({ flag_int, sp_int, tod_int, tb_int, ta_int }),
         .regs    (regs.icr),
-        .irq_n   (bus_o.irq_n)
+        .irq_n   (bus_o.irq_n),
+        .icr65   (icr65)
     );
 
     // Control Registers.

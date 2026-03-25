@@ -18,6 +18,7 @@
 
 module cia_interrupt (
     input  cia::model_t model,
+    input  logic[1:0]   icr65,
     input  logic        clk,
     input  logic        phi2_up,
     input  logic        phi2_dn,
@@ -90,7 +91,7 @@ module cia_interrupt (
         endcase
 
         irq_n = ~irq;
-        icr   = { icr7, 2'b0, flags };
+        icr   = { icr7, icr65, flags };
         // When ICR bits are cleared by ir_clr, ICR bits set in the previous
         // cycle can still be read out. A possible explanation for this is that
         // polysilicon strips used as gates to drive read bits to 0 have

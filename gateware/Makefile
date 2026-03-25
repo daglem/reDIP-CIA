@@ -4,6 +4,8 @@ MOD = $(TOP).sv \
 	ice40_init.sv \
 	bcd_add.sv \
 	bcd_update.sv \
+	cia_spi.sv \
+	cia_config.sv \
 	cia_io.sv \
 	cia_edgedet.sv \
 	cia_ports.sv \
@@ -14,9 +16,8 @@ MOD = $(TOP).sv \
 	cia_control.sv \
 	cia_core.sv
 
-MOS6526 ?= 0
-ifeq "$(MOS6526)" "1"
-FLG += -DMOS6526
+ifneq ($(origin CIA_MODEL), undefined)
+  FLG += -DCIA_MODEL=$(CIA_MODEL)
 endif
 
 SRC = $(PKG) $(MOD)
