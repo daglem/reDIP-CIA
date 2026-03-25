@@ -72,7 +72,10 @@ module redip_cia (
     // Serial port input/output
     inout logic SP,
     // Interrupt request output
-    inout logic IRQ
+    inout logic IRQ,
+
+    // SPI CS
+    inout logic SPI_CS
 );
 
     // CIA API parameters.
@@ -91,35 +94,74 @@ module redip_cia (
         .rst_24 (rst_24)
     );
 
+    // CIA model configuration.
+`ifdef CIA_MODEL
+    // Fixed model: MOS6526, MOS8521, or MOS8520.
+    // No configuration functionality, i.e. it should not be possible to
+    // programmatically determine that this is not an original CIA chip.
+/* verilator lint_off UNUSEDSIGNAL */
+    cia::spi_i_t spi_i;
+/* verilator lint_on UNUSEDSIGNAL */
+    cia::spi_o_t spi_o = '0;
+    cia::model_t model = cia::`CIA_MODEL;
+    logic [1:0]  icr65 = '0;
+`else
+    // Configurable model.
+    logic phi2_prev;
+    logic icr_access;
+    always_ff @(posedge clk_24)
+        phi2_prev <= bus_i.phi2;
+    always_comb
+        icr_access = ~bus_i.cs_n && bus_i.addr == 'hD && phi2_prev && ~bus_i.phi2;
+
+    cia::spi_i_t spi_i;
+    cia::spi_o_t spi_o;
+    cia::model_t model;
+    logic [1:0]  icr65;
+
+    cia_config cia_config (
+        .clk   (clk_24),
+        .res   (rst_24 | ~bus_i.res_n),
+        .icr_r (icr_access &  bus_i.r_w_n),
+        .icr_w (icr_access & ~bus_i.r_w_n),
+        .data  (bus_i.data),
+        .spi_i (spi_i),
+        .spi_o (spi_o),
+        .model (model),
+        .icr65 (icr65)
+    );
+`endif
+
     // CIA I/O pads.
     cia_io cia_io (
-        .clk        (clk_24),
-        .pad_phi2   (PHI2),
-        .pad_res_n  (RES),
-        .pad_cs_n   (CS),
-        .pad_r_w_n  (R_W),
-        .pad_addr   ({ RS3, RS2, RS1, RS0 }),
-        .pad_data   ({ D7, D6, D5, D4, D3, D2, D1, D0 }),
-        .pad_pa     ({ PA7, PA6, PA5, PA4, PA3, PA2, PA1, PA0 }),
-        .pad_pb     ({ PB7, PB6, PB5, PB4, PB3, PB2, PB1, PB0 }),
-        .pad_pc_n   (PC),
-        .pad_flag_n (FLAG),
-        .pad_tod    (TOD),
-        .pad_cnt    (CNT),
-        .pad_sp     (SP),
-        .pad_irq_n  (IRQ),
-        .bus_i      (bus_i),
-        .bus_o      (bus_o)
+        .model        (model),
+        .clk          (clk_24),
+        .pad_phi2     (PHI2),
+        .pad_res_n    (RES),
+        .pad_cs_n     (CS),
+        .pad_r_w_n    (R_W),
+        .pad_addr     ({ RS3, RS2, RS1, RS0 }),
+        .pad_data     ({ D7, D6, D5, D4, D3, D2, D1, D0 }),
+        .pad_pa       ({ PA7, PA6, PA5, PA4, PA3, PA2, PA1, PA0 }),
+        .pad_pb       ({ PB7, PB6, PB5, PB4, PB3, PB2, PB1, PB0 }),
+        .pad_pc_n     (PC),
+        .pad_flag_n   (FLAG),
+        .pad_tod      (TOD),
+        .pad_cnt      (CNT),
+        .pad_sp       (SP),
+        .pad_irq_n    (IRQ),
+        .pad_spi_cs_n (SPI_CS),
+        .bus_i        (bus_i),
+        .bus_o        (bus_o),
+        .spi_i        (spi_i),
+        .spi_o        (spi_o)
     );
 
     // CIA core API.
     /* verilator lint_off PINMISSING */
     cia_core cia_core (
-`ifdef MOS6526
-        .model   (cia::MOS6526),
-`else
-        .model   (cia::MOS8521),
-`endif
+        .model   (model),
+        .icr65   (icr65),
         .clk     (clk_24),
         .rst     (rst_24),
         .bus_i   (bus_i),

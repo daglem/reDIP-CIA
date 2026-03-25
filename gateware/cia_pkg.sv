@@ -27,6 +27,7 @@ package cia;
     typedef logic  [1:0] reg2_t;
 
     typedef enum logic [1:0] {
+        NA,
         MOS6526,
         MOS8521,
         MOS8520
@@ -153,5 +154,17 @@ package cia;
         logic   sp;
         logic   irq_n;
     } bus_o_t;
+
+    // SPI bus signals.
+    // We don't bother with dual or quad SPI here.
+    typedef struct packed {
+        logic cs_n;
+        logic sclk;
+        logic so;
+    } spi_o_t;
+
+    typedef struct packed {
+        logic si;
+    } spi_i_t;
 
 endpackage
