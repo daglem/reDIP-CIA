@@ -40,8 +40,8 @@ pinout borrowed from the
 The board is fully pin compatible with the venerable MOS 6526/8521 and MOS 8520
 CIA chips.
 
-Cycle accurate emulation of the MOS 6526/8521 and MOS 8580 CIA chips has been
-implemented in [gateware](gateware/).
+Cycle accurate emulation of the MOS 6526/8521 and MOS 8520 CIA chips has been
+implemented in [gateware](gateware/), configurable via [software](software/).
 
 ## Thanks
 
