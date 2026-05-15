@@ -91,6 +91,12 @@ module redip_cia (
         .rst_24 (rst_24)
     );
 
+`ifdef CIA_MODEL
+    cia::model_t model = cia::`CIA_MODEL;
+`else
+    cia::model_t model = cia::MOS8521;
+`endif
+
     // CIA I/O pads.
     cia_io cia_io (
         .clk        (clk_24),
@@ -115,11 +121,7 @@ module redip_cia (
     // CIA core API.
     /* verilator lint_off PINMISSING */
     cia_core cia_core (
-`ifdef MOS6526
-        .model   (cia::MOS6526),
-`else
-        .model   (cia::MOS8521),
-`endif
+        .model   (model),
         .clk     (clk_24),
         .rst     (rst_24),
         .bus_i   (bus_i),

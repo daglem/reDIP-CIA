@@ -19,17 +19,18 @@
 module cia_control #(
     parameter CR  // 0 = CRA, 1 = CRB
 )(
-    input  logic        clk,
-    input  logic        phi2_dn,
-    input  logic        res,
-    input  logic        cr_w,
-    input  cia::reg8_t  data,
-    input  logic        t_ufl,
-    input  logic        cnt_up,
-    input  logic        t0_int,  // Only used by CRB
-    input  logic        cnt,     // Only used by CRB
-    output cia::reg8_t  regs,
-    output cia::tctrl_t t_ctrl
+    input  cia::model_t    model,
+    input  logic           clk,
+    input  logic           phi2_dn,
+    input  logic           res,
+    input  logic           cr_w,
+    input  cia::reg8_t     data,
+    input  logic           cnt_up,
+    input  logic           t0_int,    // Only used by CRB
+    input  logic           cnt,       // Only used by CRB
+    input  cia::one_shot_t one_shot,  // One-shot control inputs
+    output cia::reg8_t     regs,
+    output cia::tctrl_t    t_ctrl     // Timer control inputs
 );
 
     // Control register.
@@ -51,11 +52,15 @@ module cia_control #(
         // cra.start to be cleared for an extra cycle.
         // Test: vice-testprogs/general/Lorenz-2.15/src/flipos.prg
         cr_next        = cr_w ? data : cr;
-        cr_next.start &= ~((cr.runmode | cr_next.runmode) & t_ufl);
+        cr_next.start |= one_shot.start;  // NB! one_shot.start is only set for MOS 8520
+        cr_next.start &= (model == cia::MOS8520) ?
+                         ~(one_shot.loaded & one_shot.stop) :
+                         ~((cr.runmode | cr_next.runmode) & one_shot.stop);
 
         // Timer control signals.
-        t_ctrl.start  = cr.start;
-        t_ctrl.toggle = cr.outmode;
+        t_ctrl.start    = cr.start;
+        t_ctrl.toggle   = cr.outmode;
+        t_ctrl.one_shot = (model == cia::MOS8520) & cr.runmode;  // For MOS 8520 timer control
 
         // Contrary to what's stated in the datasheet, the control register
         // LOAD bit is actually stored, and is ANDed with the control register

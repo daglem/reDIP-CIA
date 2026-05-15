@@ -16,6 +16,7 @@
 
 `default_nettype none
 
+// MOS 6526/8521 TOD
 module cia_tod (
     input  logic       clk,
     input  logic       phi2,
@@ -124,7 +125,7 @@ module cia_tod (
         else if (rd_10ths_prev | res) tod_sample = 1;
         else                          tod_sample = tod_sample_state;
 
-        // SR latch controlling counter shift.
+        // SR latch controlling TOD input divider counter shift.
         if (phi20_prev) tod_shift = tod_up;
         else            tod_shift = tod_shift_prev;
 

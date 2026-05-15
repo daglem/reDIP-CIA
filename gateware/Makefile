@@ -9,14 +9,14 @@ MOD = $(TOP).sv \
 	cia_ports.sv \
 	cia_timer.sv \
 	cia_tod.sv \
+	cia_cnt.sv \
 	cia_serial.sv \
 	cia_interrupt.sv \
 	cia_control.sv \
 	cia_core.sv
 
-MOS6526 ?= 0
-ifeq "$(MOS6526)" "1"
-FLG += -DMOS6526
+ifneq ($(origin CIA_MODEL), undefined)
+  FLG += -DCIA_MODEL=$(CIA_MODEL)
 endif
 
 SRC = $(PKG) $(MOD)
@@ -30,7 +30,6 @@ lint-slang:
 	slang --lint-only -y. -ycells_sim -Wconversion -Wextra -Wparentheses -Wpedantic -Wunused -Wno-implicit-net-port -Wno-unconnected-port -Wno-useless-cast $(FLG) $(PKG) $(TOP).sv -top $(TOP)
 
 $(TOP).json: $(SRC) Makefile
-#	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); scratchpad -copy abc9.script.flow3 abc9.script; synth_ice40 -abc9 -abc2 -device u -top $(TOP) -json $@'
 	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); synth_ice40 -abc9 -device u -dff -top $(TOP) -json $@'
 
 %.asc: %.json %.pcf

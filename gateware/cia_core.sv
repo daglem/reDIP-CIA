@@ -43,14 +43,12 @@ module cia_core (
     logic we;        // Write enable
     logic cnt_up;    // CNT edge detector
     logic flag_int;  // /FLAG edge detector interrupt
-    logic tod_int;   // Time Of Day interrupt
+    logic alrm_int;  // Time Of Day interrupt
     logic sp_int;    // Serial Port interrupt
-    /* verilator lint_off UNOPTFLAT */
-    logic ta_ufl;    // Timer A underflow
-    logic tb_ufl;    // Timer B underflow
+    cia::one_shot_t ta_one_shot;  // CRA control inputs for one-shot timer
+    cia::one_shot_t tb_one_shot;  // CRB control inputs for one-shot timer
     logic ta_int;    // Timer A interrupt
     logic tb_int;    // Timer B interrupt
-    /* verilator lint_off UNOPTFLAT */
     logic ta_pb;     // Timer A PB output
     logic tb_pb;     // Timer B PB output
 
@@ -130,35 +128,37 @@ module cia_core (
 
     // Timer A.
     cia_timer timer_a (
-        .clk     (clk),
-        .phi2_dn (phi2_dn),
-        .res     (res),
-        .lo_w    (we && bus_i.addr == 'h4),
-        .hi_w    (we && bus_i.addr == 'h5),
-        .data    (bus_i.data),
-        .ctrl    (ta_ctrl),
-        .regs    (regs.ta),
-        .ufl     (ta_ufl),
-        .intr    (ta_int),
-        .pb      (ta_pb)
+        .clk      (clk),
+        .phi2_dn  (phi2_dn),
+        .res      (res),
+        .lo_w     (we && bus_i.addr == 'h4),
+        .hi_w     (we && bus_i.addr == 'h5),
+        .data     (bus_i.data),
+        .ctrl     (ta_ctrl),
+        .regs     (regs.ta),
+        .one_shot (ta_one_shot),
+        .intr     (ta_int),
+        .pb       (ta_pb)
     );
 
     // Timer B.
     cia_timer timer_b (
-        .clk     (clk),
-        .phi2_dn (phi2_dn),
-        .res     (res),
-        .lo_w    (we && bus_i.addr == 'h6),
-        .hi_w    (we && bus_i.addr == 'h7),
-        .data    (bus_i.data),
-        .ctrl    (tb_ctrl),
-        .regs    (regs.tb),
-        .ufl     (tb_ufl),
-        .intr    (tb_int),
-        .pb      (tb_pb)
+        .clk      (clk),
+        .phi2_dn  (phi2_dn),
+        .res      (res),
+        .lo_w     (we && bus_i.addr == 'h6),
+        .hi_w     (we && bus_i.addr == 'h7),
+        .data     (bus_i.data),
+        .ctrl     (tb_ctrl),
+        .regs     (regs.tb),
+        .one_shot (tb_one_shot),
+        .intr     (tb_int),
+        .pb       (tb_pb)
     );
 
-    // Time Of Day.
+    // Time Of Day (MOS 6526/8521).
+    cia::tod_t tod_regs;
+    logic      tod_int;
     cia_tod tod (
         .clk     (clk),
         .phi2    (bus_i.phi2),
@@ -172,9 +172,33 @@ module cia_core (
         .tod     (bus_i.tod),
         .tod50hz (regs.cra.todin),
         .w_alarm (regs.crb.alarm),
-        .regs    (regs.tod),
+        .regs    (tod_regs),
         .tod_int (tod_int)
     );
+
+    // TOD counter (MOS 8520).
+    cia::cnt_t cnt_regs;
+    logic      cnt_int;
+    cia_cnt cnt (
+        .clk     (clk),
+        .phi2    (bus_i.phi2),
+        .phi2_up (phi2_up),
+        .phi2_dn (phi2_dn),
+        .res     (res),
+        .rd      (rd),
+        .we      (we),
+        .addr    (bus_i.addr),
+        .data    (bus_i.data),
+        .tod     (bus_i.tod),
+        .w_alarm (regs.crb.alarm),
+        .regs    (cnt_regs),
+        .cnt_int (cnt_int)
+    );
+
+    always_comb begin
+        regs.tod = (model == cia::MOS8520) ? cnt_regs : tod_regs;
+        alrm_int = (model == cia::MOS8520) ? cnt_int  : tod_int;
+    end
 
     // Serial Port.
     cia_serial serial (
@@ -211,38 +235,40 @@ module cia_core (
         .we      (we),
         .addr    (bus_i.addr),
         .data    (bus_i.data),
-        .sources ({ flag_int, sp_int, tod_int, tb_int, ta_int }),
+        .sources ({ flag_int, sp_int, alrm_int, tb_int, ta_int }),
         .regs    (regs.icr),
         .irq_n   (bus_o.irq_n)
     );
 
     // Control Register A.
     cia_control #(0) control_a (
-        .clk     (clk),
-        .phi2_dn (phi2_dn),
-        .res     (res),
-        .cr_w    (we && bus_i.addr == 'hE),
-        .data    (bus_i.data),
-        .t_ufl   (ta_ufl),
-        .cnt_up  (cnt_up),
-        .t0_int  ('0),  // Not used by CRA
-        .cnt     ('0),  // Not used by CRA
-        .regs    (regs.cra),
-        .t_ctrl  (ta_ctrl)
+        .model    (model),
+        .clk      (clk),
+        .phi2_dn  (phi2_dn),
+        .res      (res),
+        .cr_w     (we && bus_i.addr == 'hE),
+        .data     (bus_i.data),
+        .cnt_up   (cnt_up),
+        .t0_int   ('0),  // Not used by CRA
+        .cnt      ('0),  // Not used by CRA
+        .one_shot (ta_one_shot),
+        .regs     (regs.cra),
+        .t_ctrl   (ta_ctrl)
     );
 
     // Control Register B.
     cia_control #(1) control_b (
-        .clk     (clk),
-        .phi2_dn (phi2_dn),
-        .res     (res),
-        .cr_w    (we && bus_i.addr == 'hF),
-        .data    (bus_i.data),
-        .t_ufl   (tb_ufl),
-        .cnt_up  (cnt_up),
-        .t0_int  (ta_int),
-        .cnt     (bus_i.cnt),
-        .regs    (regs.crb),
-        .t_ctrl  (tb_ctrl)
+        .model    (model),
+        .clk      (clk),
+        .phi2_dn  (phi2_dn),
+        .res      (res),
+        .cr_w     (we && bus_i.addr == 'hF),
+        .data     (bus_i.data),
+        .cnt_up   (cnt_up),
+        .t0_int   (ta_int),
+        .cnt      (bus_i.cnt),
+        .one_shot (tb_one_shot),
+        .regs     (regs.crb),
+        .t_ctrl   (tb_ctrl)
     );
 endmodule

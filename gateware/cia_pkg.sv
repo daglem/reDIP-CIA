@@ -20,6 +20,7 @@
 package cia;
 /* verilator lint_on DECLFILENAME */
 
+    typedef logic [23:0] reg24_t;  // MOS 8520 TOD counter, alarm
     typedef logic [15:0] reg16_t;  // Timer counter, timer latch
     typedef logic  [7:0] reg8_t;   // Data bus, register bytes
     typedef logic  [3:0] reg4_t;   // Address bus, BCD count
@@ -68,6 +69,22 @@ package cia;
     } tod_t;
 
     typedef struct packed {
+        // 24 bit up counter
+        struct packed {
+            reg8_t lsb;
+            reg8_t mid;
+            reg8_t msb;
+        } cnt;
+        // No Connect
+        reg8_t nc;
+    } cnt_t;
+
+    typedef union packed {
+        tod_t tod;  // MOS 6526/8521
+        cnt_t cnt;  // MOS 8520
+    } tod_model_t;
+
+    typedef struct packed {
         logic ir_s_c;
         logic z7;
         logic z6;
@@ -101,25 +118,33 @@ package cia;
 
     typedef struct packed {
         // I/O port registers.
-        ports_t ports;
+        ports_t     ports;
         // Timer registers.
-        timer_t ta;
-        timer_t tb;
+        timer_t     ta;
+        timer_t     tb;
         // Time Of Day registers.
-        tod_t   tod;
+        tod_model_t tod;
         // Serial data register.
-        reg8_t  sdr;
+        reg8_t      sdr;
         // Interrupt control register.
-        icr_t   icr;
+        icr_t       icr;
         // Control registers.
-        cra_t   cra;
-        crb_t   crb;
+        cra_t       cra;
+        crb_t       crb;
     } registers_t;
+
+    // Control register inputs for one-shot timers.
+    typedef struct packed {
+        logic start;   // For MOS 8520
+        logic loaded;  // For MOS 8520
+        logic stop;    // Timer underflow
+    } one_shot_t;
 
     // Timer control inputs.
     typedef struct packed {
         logic count;
         logic force_load;
+        logic one_shot;  // For MOS 8520
         logic toggle;
         logic start;
     } tctrl_t;
