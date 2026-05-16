@@ -121,8 +121,8 @@ module cia_core (
         .pb      (bus_i.pb),
         .ta_pb   (ta_pb),
         .tb_pb   (tb_pb),
-        .ta_pbon (regs.control.cra.pbon),
-        .tb_pbon (regs.control.crb.pbon),
+        .ta_pbon (regs.cra.pbon),
+        .tb_pbon (regs.crb.pbon),
         .regs    (regs.ports),
         .pads    (bus_o.ports),
         .pc_n    (bus_o.pc_n)
@@ -170,8 +170,8 @@ module cia_core (
         .addr    (bus_i.addr),
         .data    (bus_i.data),
         .tod     (bus_i.tod),
-        .tod50hz (regs.control.cra.todin),
-        .w_alarm (regs.control.crb.alarm),
+        .tod50hz (regs.cra.todin),
+        .w_alarm (regs.crb.alarm),
         .regs    (regs.tod),
         .tod_int (tod_int)
     );
@@ -185,7 +185,7 @@ module cia_core (
         .we      (we),
         .addr    (bus_i.addr),
         .data    (bus_i.data),
-        .txmode  (regs.control.cra.spmode),
+        .txmode  (regs.cra.spmode),
         .ta_int  (ta_int),
         .cnt_up  (cnt_up),
 `ifdef VERILATOR
@@ -216,21 +216,33 @@ module cia_core (
         .irq_n   (bus_o.irq_n)
     );
 
-    // Control Registers.
-    cia_control control (
+    // Control Register A.
+    cia_control #(0) control_a (
         .clk     (clk),
         .phi2_dn (phi2_dn),
         .res     (res),
-        .we      (we),
-        .addr    (bus_i.addr),
+        .cr_w    (we && bus_i.addr == 'hE),
         .data    (bus_i.data),
-        .cnt     (bus_i.cnt),
+        .t_ufl   (ta_ufl),
         .cnt_up  (cnt_up),
-        .ta_ufl  (ta_ufl),
-        .tb_ufl  (tb_ufl),
-        .ta_int  (ta_int),
-        .regs    (regs.control),
-        .ta_ctrl (ta_ctrl),
-        .tb_ctrl (tb_ctrl)
+        .t0_int  ('0),  // Not used by CRA
+        .cnt     ('0),  // Not used by CRA
+        .regs    (regs.cra),
+        .t_ctrl  (ta_ctrl)
+    );
+
+    // Control Register B.
+    cia_control #(1) control_b (
+        .clk     (clk),
+        .phi2_dn (phi2_dn),
+        .res     (res),
+        .cr_w    (we && bus_i.addr == 'hF),
+        .data    (bus_i.data),
+        .t_ufl   (tb_ufl),
+        .cnt_up  (cnt_up),
+        .t0_int  (ta_int),
+        .cnt     (bus_i.cnt),
+        .regs    (regs.crb),
+        .t_ctrl  (tb_ctrl)
     );
 endmodule

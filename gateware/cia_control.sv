@@ -16,38 +16,33 @@
 
 `default_nettype none
 
-module cia_control (
-    input  logic          clk,
-    input  logic          phi2_dn,
-    input  logic          res,
-    input  logic          we,
-    input  cia::reg4_t    addr,
-    input  cia::reg8_t    data,
-    input  logic          cnt,
-    input  logic          cnt_up,
-    input  logic          ta_ufl,
-    input  logic          tb_ufl,
-    input  logic          ta_int,
-    output cia::control_t regs,
-    output cia::tctrl_t   ta_ctrl,
-    output cia::tctrl_t   tb_ctrl
+module cia_control #(
+    parameter CR  // 0 = CRA, 1 = CRB
+)(
+    input  logic        clk,
+    input  logic        phi2_dn,
+    input  logic        res,
+    input  logic        cr_w,
+    input  cia::reg8_t  data,
+    input  logic        t_ufl,
+    input  logic        cnt_up,
+    input  logic        t0_int,  // Only used by CRB
+    input  logic        cnt,     // Only used by CRB
+    output cia::reg8_t  regs,
+    output cia::tctrl_t t_ctrl
 );
 
-    // Control registers.
-    cia::control_t ctrl;
-    cia::control_t ctrl_next;
+    // Control register.
+    // CRA and CRB only differ in bits 6 and 7, and bit 7 is not referenced here.
+    // For simplicity we use the type for CRA.
+    cia::cra_t cr;
+    cia::cra_t cr_next;
 
     // Control signals.
-    logic cra_w;
-    logic cra_w_prev;
-    logic crb_w;
-    logic crb_w_prev;
+    logic cr_w_prev;
     logic cnt_prev;
 
     always_comb begin
-        cra_w = we && addr == 'hE;
-        crb_w = we && addr == 'hF;
-
         // Multiplexers for register updates.
         // cra.start and cra.runmode are both latched by PHI1.
         // Since ~cra.runmode is injected into the continuous refresh of
@@ -55,18 +50,12 @@ module cia_control (
         // of cra.runmode from 1 to 0 at the start of PHI1 causes
         // cra.start to be cleared for an extra cycle.
         // Test: vice-testprogs/general/Lorenz-2.15/src/flipos.prg
-        ctrl_next.cra        = cra_w ? data : ctrl.cra;
-        ctrl_next.cra.start &= ~((ctrl.cra.runmode | ctrl_next.cra.runmode) & ta_ufl);
-
-        ctrl_next.crb        = crb_w ? data : ctrl.crb;
-        ctrl_next.crb.start &= ~((ctrl.crb.runmode | ctrl_next.crb.runmode) & tb_ufl);
+        cr_next        = cr_w ? data : cr;
+        cr_next.start &= ~((cr.runmode | cr_next.runmode) & t_ufl);
 
         // Timer control signals.
-        ta_ctrl.start = ctrl.cra.start;
-        tb_ctrl.start = ctrl.crb.start;
-
-        ta_ctrl.toggle = ctrl.cra.outmode;
-        tb_ctrl.toggle = ctrl.crb.outmode;
+        t_ctrl.start  = cr.start;
+        t_ctrl.toggle = cr.outmode;
 
         // Contrary to what's stated in the datasheet, the control register
         // LOAD bit is actually stored, and is ANDed with the control register
@@ -75,25 +64,26 @@ module cia_control (
         // An interesting observation is that if the control register is
         // written in two consecutive cycles, the last written LOAD bit will
         // override the first.
-        ta_ctrl.force_load = ctrl_next.cra.load & cra_w_prev;
-        tb_ctrl.force_load = ctrl_next.crb.load & crb_w_prev;
+        t_ctrl.force_load = cr.load & cr_w_prev;
 
-        // INMODE  1=TIMER A counts positive CNT transitions, 0=TIMER A counts PHI2 pulses.
-        ta_ctrl.count = (~ctrl.cra.inmode | cnt_up) & ctrl.cra.start;
-
-        // CRB6 CRB5
-        // 0    0    TIMER B counts PHI2 pulses.
-        // 0    1    TIMER B counts positive CNT transistions.
-        // 1    0    TIMER B counts TIMER A underflow pulses.
-        // 1    1    TIMER B counts TIMER A underflow pulses while CNT is high.
-        tb_ctrl.count = (ctrl.crb.inmode[1] ?
-                         ta_int & (~ctrl.crb.inmode[0] | cnt_prev) :
-                         ~ctrl.crb.inmode[0] | cnt_up
-                        ) & ctrl.crb.start;
+        if (CR == 0) begin
+            // CRA:
+            // INMODE  1=TIMER A counts positive CNT transitions, 0=TIMER A counts PHI2 pulses.
+            t_ctrl.count = (~cr.inmode | cnt_up) & cr.start;
+        end else begin
+            // CRB:
+            // CRB6 CRB5
+            // 0    0    TIMER B counts PHI2 pulses.
+            // 0    1    TIMER B counts positive CNT transistions.
+            // 1    0    TIMER B counts TIMER A underflow pulses.
+            // 1    1    TIMER B counts TIMER A underflow pulses while CNT is high.
+            t_ctrl.count = cr[6] ?
+                           t0_int & (~cr[5] | cnt_prev) & cr.start :
+                           (~cr[5] | cnt_up) & cr.start;
+        end
 
         // Read control registers. The LOAD bit is not output.
-        regs.cra = { ctrl.cra[7:5], 1'b0, ctrl.cra[3:0] };
-        regs.crb = { ctrl.crb[7:5], 1'b0, ctrl.crb[3:0] };
+        regs = { cr[7:5], 1'b0, cr[3:0] };
     end
 
     // Update of control registers.
@@ -102,17 +92,16 @@ module cia_control (
             // Reset at any time.
             // In the real CIA chips, reset is made while PHI1 is high.
             // Also, the stored LOAD bit is not reset in a real chip.
-            ctrl <= '0;
+            cr <= '0;
         end else if (phi2_dn) begin
-            ctrl <= ctrl_next;
+            cr <= cr_next;
         end
     end
 
     always_ff @(posedge clk) begin
         if (phi2_dn) begin
-            cra_w_prev <= cra_w;
-            crb_w_prev <= crb_w;
-            cnt_prev   <= cnt;
+            cr_w_prev <= cr_w;
+            cnt_prev  <= cnt;
         end
     end
 endmodule

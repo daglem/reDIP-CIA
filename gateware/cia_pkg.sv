@@ -100,24 +100,20 @@ package cia;
     } crb_t;
 
     typedef struct packed {
-        cra_t cra;
-        crb_t crb;
-    } control_t;
-
-    typedef struct packed {
         // I/O port registers.
-        ports_t   ports;
+        ports_t ports;
         // Timer registers.
-        timer_t   ta;
-        timer_t   tb;
+        timer_t ta;
+        timer_t tb;
         // Time Of Day registers.
-        tod_t     tod;
+        tod_t   tod;
         // Serial data register.
-        reg8_t    sdr;
+        reg8_t  sdr;
         // Interrupt control register.
-        icr_t     icr;
+        icr_t   icr;
         // Control registers.
-        control_t control;
+        cra_t   cra;
+        crb_t   crb;
     } registers_t;
 
     // Timer control inputs.
