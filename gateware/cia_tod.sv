@@ -83,15 +83,8 @@ module cia_tod (
     logic ml_c;  // minutes
     logic mh_c;
     logic hl_c;  // hours
-    logic hl_9_c;
-    logic hl_2_c;
-    /* verilator lint_off UNUSEDSIGNAL */
-    logic hh_c;
-    /* verilator lint_on UNUSEDSIGNAL */
 
     // Logic for hour 12 -> 01.
-    cia::reg4_t cnext_tod_hr_hl_9;
-    cia::reg4_t cnext_tod_hr_hl_2;
     logic       h12;
     logic       h12_next;
 
@@ -144,21 +137,20 @@ module cia_tod (
         ts_cin   = tod_tick_up & phi20_prev;
     end
 
-    bcd_update #(9)    ts_update   (we_10ths, data[3:0], clock.tod_10ths.t, ts_cin, cnext.tod_10ths.t, ts_c  );
-    bcd_update #(9)    sl_update   (we_sec,   data[3:0], clock.tod_sec.sl,  ts_c,   cnext.tod_sec.sl,  sl_c  );
-    bcd_update #(5)    sh_update   (we_sec,   data[6:4], clock.tod_sec.sh,  sl_c,   cnext.tod_sec.sh,  sh_c  );
-    bcd_update #(9)    ml_update   (we_min,   data[3:0], clock.tod_min.ml,  sh_c,   cnext.tod_min.ml,  ml_c  );
-    bcd_update #(5)    mh_update   (we_min,   data[6:4], clock.tod_min.mh,  ml_c,   cnext.tod_min.mh,  mh_c  );
-    bcd_update #(9)    hl_update_9 (we_hr ,   data[3:0], clock.tod_hr.hl,   mh_c,   cnext_tod_hr_hl_9, hl_9_c);
-    bcd_update #(2, 4) hl_update_2 (we_hr ,   data[3:0], clock.tod_hr.hl,   mh_c,   cnext_tod_hr_hl_2, hl_2_c);
+    bcd_update #(9) ts_update (we_10ths, data[3:0], clock.tod_10ths.t, ts_cin, cnext.tod_10ths.t, ts_c  );
+    bcd_update #(9) sl_update (we_sec,   data[3:0], clock.tod_sec.sl,  ts_c,   cnext.tod_sec.sl,  sl_c  );
+    bcd_update #(5) sh_update (we_sec,   data[6:4], clock.tod_sec.sh,  sl_c,   cnext.tod_sec.sh,  sh_c  );
+    bcd_update #(9) ml_update (we_min,   data[3:0], clock.tod_min.ml,  sh_c,   cnext.tod_min.ml,  ml_c  );
+    bcd_update #(5) mh_update (we_min,   data[6:4], clock.tod_min.mh,  ml_c,   cnext.tod_min.mh,  mh_c  );
 
     always_comb begin
         // 09:59:59.9 -> 10:00:00.0
         // 12:59:59.9 -> 01:00:00.0
         // 19:59:59:9 -> 1A:00:00:0
-        { cnext.tod_hr.hl, hl_c } = clock.tod_hr.hh ?
-                                    { cnext_tod_hr_hl_2 | { 3'b0, hl_2_c }, hl_2_c } :
-                                    { cnext_tod_hr_hl_9,                    hl_9_c };
+        { cnext.tod_hr.hl, hl_c } =
+            we_hr ? { data[3:0], 1'b0 } :
+            (clock.tod_hr.hl == (clock.tod_hr.hh ? 'd2 : 'd9) && mh_c) ? 5'd1 : { clock.tod_hr.hl + mh_c, 1'd0 };
+        cnext.tod_hr.hl[0] |= (clock.tod_hr.hh ? hl_c : '0);
 
         cnext.tod_hr.hh = we_hr ? data[4] : clock.tod_hr.hh + hl_c;
 
