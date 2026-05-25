@@ -11,14 +11,14 @@ The gateware implementation is based on the excellent schematics of the
 Frank "androSID" Wolf and Dieter "ttlworks" Müller.
 
 By default, emulation of MOS 6526/8521 and MOS 8520 CIA chips is configurable
-via [software](https://github.com/daglem/reDIP-CIA/software/), initially
+via [software](/software/), initially
 configured as MOS 8521.
 
 The emulation can also be locked down at build time via one of
 
 * `make CIA_MODEL=MOS6526`
-* `make CIA_MODEL=MOS8521`.
-* `make CIA_MODEL=MOS8520`.
+* `make CIA_MODEL=MOS8521`
+* `make CIA_MODEL=MOS8520`
 
 ## Installation
 
