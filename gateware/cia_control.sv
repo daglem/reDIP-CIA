@@ -19,7 +19,9 @@
 module cia_control #(
     parameter CR  // 0 = CRA, 1 = CRB
 )(
+    /* verilator lint_off UNUSEDSIGNAL */
     input  cia::model_t    model,
+    /* verilator lint_on UNUSEDSIGNAL */
     input  logic           clk,
     input  logic           phi2_dn,
     input  logic           res,
@@ -53,14 +55,14 @@ module cia_control #(
         // Test: vice-testprogs/general/Lorenz-2.15/src/flipos.prg
         cr_next        = cr_w ? data : cr;
         cr_next.start |= one_shot.start;  // NB! one_shot.start is only set for MOS 8520
-        cr_next.start &= (model == cia::MOS8520) ?
+        cr_next.start &= `MODEL_EQ_MOS8520 ?
                          ~(one_shot.loaded & one_shot.stop) :
                          ~((cr.runmode | cr_next.runmode) & one_shot.stop);
 
         // Timer control signals.
         t_ctrl.start    = cr.start;
         t_ctrl.toggle   = cr.outmode;
-        t_ctrl.one_shot = (model == cia::MOS8520) & cr.runmode;  // For MOS 8520 timer control
+        t_ctrl.one_shot = `MODEL_EQ_MOS8520 & cr.runmode;  // For MOS 8520 timer control
 
         // Contrary to what's stated in the datasheet, the control register
         // LOAD bit is actually stored, and is ANDed with the control register

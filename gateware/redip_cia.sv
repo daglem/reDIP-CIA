@@ -102,7 +102,7 @@ module redip_cia (
 /* verilator lint_off UNUSEDSIGNAL */
     cia::spi_i_t spi_i;
 /* verilator lint_on UNUSEDSIGNAL */
-    cia::spi_o_t spi_o = 3'b100;  // cs_n high
+    cia::spi_o_t spi_o = '0;  // SPI Bus Master Enable low
     cia::model_t model = cia::`CIA_MODEL;
     logic [1:0]  icr65 = '0;
 `else

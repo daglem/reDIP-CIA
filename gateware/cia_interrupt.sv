@@ -62,7 +62,7 @@ module cia_interrupt (
         r_flags = rd && addr == 'hD;
         w_mask  = we && addr == 'hD;
 
-        sources_model = (model == cia::MOS8520) ? sources_prev : sources;
+        sources_model = `MODEL_EQ_MOS8520 ? sources_prev : sources;
         ir_clr_model  = ir_clr;
         ir_clr_model |= (model == cia::MOS6526) ? ir_clr_prev : 1'b0;
 
@@ -82,7 +82,9 @@ module cia_interrupt (
           cia::MOS6526: ir_set_model = ir_set_prev;
           cia::NA,
           cia::MOS8521: ir_set_model = ir_set_phi2;
+`ifndef NO_MOS8520
           cia::MOS8520: ir_set_model = ir_set;
+`endif
         endcase
 
         // SR/RS latch setting IR flag and /IRQ pad.
@@ -129,7 +131,7 @@ module cia_interrupt (
             ir_set_phi2 <= ir_set;
         end
 
-        if ((model == cia::MOS8520) && phi2_up) begin
+        if (`MODEL_EQ_MOS8520 && phi2_up) begin
             ir_clr <= 0;
         end else if (phi2_dn) begin
             ir_clr <= r_flags | res;

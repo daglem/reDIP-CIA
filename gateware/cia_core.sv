@@ -197,8 +197,8 @@ module cia_core (
     );
 
     always_comb begin
-        regs.tod = (model == cia::MOS8520) ? cnt_regs : tod_regs;
-        alrm_int = (model == cia::MOS8520) ? cnt_int  : tod_int;
+        regs.tod = `MODEL_EQ_MOS8520 ? cnt_regs : tod_regs;
+        alrm_int = `MODEL_EQ_MOS8520 ? cnt_int  : tod_int;
     end
 
     // Serial Port.

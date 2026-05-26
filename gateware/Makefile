@@ -29,6 +29,10 @@ else
   ICEPACK_FLG = -s
 endif
 
+ifneq ($(origin NO_MOS8520), undefined)
+  FLG += -DNO_MOS8520
+endif
+
 SRC = $(PKG) $(MOD)
 
 all: $(TOP).bin
@@ -37,7 +41,7 @@ lint:
 	verilator --lint-only -Icells_sim -Wall -Wno-VARHIDDEN -Wno-CASEINCOMPLETE -Wno-PROCASSINIT -Wpedantic +systemverilogext+sv $(FLG) $(PKG) $(TOP).sv --top $(TOP)
 
 lint-slang:
-	slang --lint-only -y. -ycells_sim -Wconversion -Wextra -Wparentheses -Wpedantic -Wunused -Wno-implicit-net-port -Wno-unconnected-port -Wno-useless-cast $(FLG) $(PKG) $(TOP).sv -top $(TOP)
+	slang --lint-only --single-unit -y. -ycells_sim -Wconversion -Wextra -Wparentheses -Wpedantic -Wunused -Wno-implicit-net-port -Wno-unconnected-port -Wno-useless-cast $(FLG) $(PKG) $(TOP).sv -top $(TOP)
 
 $(TOP).json: $(SRC) Makefile
 	yosys -p 'read_verilog -sv $(FLG) $(PKG) $(MOD); synth_ice40 -device u -dff -top $(TOP) -json $@'

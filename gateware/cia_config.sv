@@ -96,7 +96,11 @@ module cia_config (
 
         // Default to MOS8521. An erased flash will report 'hFF, i.e.
         // initial programming of the configuration byte is not necessary.
+`ifdef NO_MOS8520
+        spi_model = `bit(spi_data == 'd1) ? cia::MOS6526 : cia::MOS8521;
+`else
         spi_model = `bit(spi_data >= 'd1 && spi_data <= 'd3) ? cia::model_t'(spi_data) : cia::MOS8521;
+`endif
     end
 
     // Update of state.

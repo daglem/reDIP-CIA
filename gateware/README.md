@@ -20,6 +20,13 @@ The emulation can also be locked down at build time via one of
 * `make CIA_MODEL=MOS8521`
 * `make CIA_MODEL=MOS8520`
 
+With projects in mind which use the reDIP CIA core gateware as part of a larger
+whole to emulate the Commmodore 64, there is also an option to disable code for
+the MOS 8520 (which is used in Commodore Amiga machines). This frees up some
+FPGA resources:
+
+* `make NO_MOS8520=`
+
 ## Installation
 
 The gateware is built via `make` and may be installed on the reDIP CIA hardware

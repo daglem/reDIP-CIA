@@ -25,7 +25,9 @@
 /* verilator lint_off PINMISSING */
 
 module cia_io (
+    /* verilator lint_off UNUSEDSIGNAL */
     input  cia::model_t model,
+    /* verilator lint_on UNUSEDSIGNAL */
     // FPGA clock and reset.
     input  logic        clk,
     // CIA I/O pads.
@@ -236,9 +238,9 @@ module cia_io (
 `endif
         .INPUT_CLK     (clk),
         .OUTPUT_CLK    (clk),
-        .OUTPUT_ENABLE ((model == cia::MOS8520) ? bus_o.ports.ddra : bus_o.ports.ddra & ~bus_o.ports.pra),
+        .OUTPUT_ENABLE (`MODEL_EQ_MOS8520 ? bus_o.ports.ddra : bus_o.ports.ddra & ~bus_o.ports.pra),
         .D_IN_0        (pa_x),
-        .D_OUT_0       ((model == cia::MOS8520) ? bus_o.ports.pra : 8'b0)
+        .D_OUT_0       (`MODEL_EQ_MOS8520 ? bus_o.ports.pra : 8'b0)
     );
 
     // PB0-PB7 are push-pull.
@@ -259,9 +261,9 @@ module cia_io (
 `endif
         .INPUT_CLK     (clk),
         .OUTPUT_CLK    (clk),
-        .OUTPUT_ENABLE (spi_o.bme ? 8'b10110000 : (model == cia::MOS8520) ? bus_o.ports.ddrb & ~bus_o.ports.prb : bus_o.ports.ddrb),
+        .OUTPUT_ENABLE (spi_o.bme ? 8'b10110000 : `MODEL_EQ_MOS8520 ? bus_o.ports.ddrb & ~bus_o.ports.prb : bus_o.ports.ddrb),
         .D_IN_0        (pb_x),
-        .D_OUT_0       (spi_o.bme ? { spi_o.sclk, 7'b0110000 } : (model == cia::MOS8520) ? 8'b0 : bus_o.ports.prb)
+        .D_OUT_0       (spi_o.bme ? { spi_o.sclk, 7'b0110000 } : `MODEL_EQ_MOS8520 ? 8'b0 : bus_o.ports.prb)
     );
 
     // /PC, /FLAG, CNT, SP, TOD, /IRQ.
@@ -279,8 +281,8 @@ module cia_io (
         .CLOCK_ENABLE  (1'b1),
 `endif
         .OUTPUT_CLK    (clk),
-        .OUTPUT_ENABLE (spi_o.bme ? 1'b1 : (model == cia::MOS8520) ? ~bus_o.pc_n : 1'b1),
-        .D_OUT_0       (spi_o.bme ? spi_o.so : (model == cia::MOS8520) ? 1'b0 : bus_o.pc_n)
+        .OUTPUT_ENABLE (spi_o.bme ? 1'b1 : `MODEL_EQ_MOS8520 ? ~bus_o.pc_n : 1'b1),
+        .D_OUT_0       (spi_o.bme ? spi_o.so : `MODEL_EQ_MOS8520 ? 1'b0 : bus_o.pc_n)
     );
 
     // /FLAG is input only.

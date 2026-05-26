@@ -16,6 +16,12 @@
 
 `default_nettype none
 
+`ifdef NO_MOS8520
+  `define MODEL_EQ_MOS8520 1'b0
+`else
+  `define MODEL_EQ_MOS8520 (model == cia::MOS8520)
+`endif
+
 /* verilator lint_off DECLFILENAME */
 package cia;
 /* verilator lint_on DECLFILENAME */
@@ -30,8 +36,11 @@ package cia;
     typedef enum logic [1:0] {
         NA,
         MOS6526,
-        MOS8521,
+        MOS8521
+`ifndef NO_MOS8520
+        ,
         MOS8520
+`endif
     } model_t;
 
     typedef struct packed {
