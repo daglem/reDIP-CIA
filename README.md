@@ -49,6 +49,12 @@ Cycle accurate emulation of the MOS 6522 VIA chip has been implemented in
 [gateware](gateware/VIA/). Please note that this is currently completely
 untested!
 
+## MOS 6520 PIA compatibility
+
+Cycle accurate emulation of the MOS 6520 VIA chip has been implemented in
+[gateware](gateware/PIA/). Please note that this is currently completely
+untested!
+
 ## Thanks
 
 The gateware implementations would not have been possible without the
