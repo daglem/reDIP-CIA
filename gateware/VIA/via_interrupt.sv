@@ -30,7 +30,9 @@ module via_interrupt (
     output logic        irq_n
 );
 
-    logic [6:0] r, s;
+    via::reg7_t flags;  // IFR bit 6:0
+    via::reg7_t mask;   // IER bit 6:0
+    via::reg7_t r, s;   // Reset or set flag
 
     always_comb begin
         // Reset signals for interrupt flags.
@@ -56,25 +58,27 @@ module via_interrupt (
         };
 
         // IRQ when any enabled interrupt flag is set.
-        irq_n = ~|(ifr & ier);
+        ifr   = { |(flags & mask), flags };
+        ier   = { 1'b1, mask };
+        irq_n = ~ifr[7];
     end
 
     // Update registers.
     always_ff @(posedge clk) begin
         if (res) begin
             // Asynchronous reset (with respect to PHI2).
-            ier      <= 'b10000000;
+            mask <= '0;
         end else if (we && addr == 'he) begin
             // Set or clear interrupt enable bits.
-            ier[6:0] <= data[7] ? ier[6:0] | data[6:0] : ier[6:0] & ~data[6:0];
+            mask <= data[7] ? mask | data[6:0] : mask & ~data[6:0];
         end
 
         // Reset or set interrupt flags.
         for (int i = 0; i < $bits(r); i++) begin
             if (r[i]) begin
-                ifr[i] <= '0;
+                flags[i] <= '0;
             end else if (s[i]) begin
-                ifr[i] <= '1;
+                flags[i] <= '1;
             end
         end
     end

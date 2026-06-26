@@ -76,7 +76,7 @@ module via_core (
         // the next cycle.
         if ((bus_i.phi2 & ~cs) | res) begin
             we_phi2 <= '0;
-        end else if (bus_i.phi2 & cs & r_w_n) begin
+        end else if (bus_i.phi2 & cs & ~r_w_n) begin
             we_phi2 <= '1;
         end
 

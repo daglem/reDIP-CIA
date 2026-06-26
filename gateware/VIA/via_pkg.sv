@@ -22,6 +22,7 @@ package via;
 
     typedef logic [15:0] reg16_t;  // Timer counter, timer latch
     typedef logic  [7:0] reg8_t;   // Data bus, register bytes
+    typedef logic  [6:0] reg7_t;   // IFR, IER
     typedef logic  [4:0] reg5_t;   // Ring counter
     typedef logic  [3:0] reg4_t;   // Address bus
     typedef logic  [2:0] reg3_t;   // Register bits
