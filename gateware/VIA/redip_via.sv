@@ -109,10 +109,12 @@ module redip_via (
     );
 
     // VIA core API.
+    /* verilator lint_off PINMISSING */
     via_core via_core (
         .clk     (clk_24),
         .rst     (rst_24),
         .bus_i   (bus_i),
         .bus_o   (bus_o)
     );
+    /* verilator lint_on PINMISSING */
 endmodule

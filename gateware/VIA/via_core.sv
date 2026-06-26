@@ -21,6 +21,10 @@ module via_core (
     input  logic        rst,
     input  via::bus_i_t bus_i,
     output via::bus_o_t bus_o
+`ifdef VERILATOR
+    ,
+    output via::ifr_t   ifr
+`endif
 );
 
 `ifdef VM_TRACE
@@ -58,6 +62,10 @@ module via_core (
 
         // Output addressed value.
         bus_o.data = regs[{ ~addr, 3'b000 } +: 8];
+
+`ifdef VERILATOR
+        ifr = regs.ifr;
+`endif
     end
 
     always_ff @(posedge clk) begin

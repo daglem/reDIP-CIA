@@ -38,6 +38,10 @@ $(TOP).json: $(SRC) Makefile
 prog: $(TOP).bin
 	iceprog $<
 
+sim:
+	verilator --Mdir sim_trace -DVM_TRACE -Wno-CASEINCOMPLETE --timescale "1us/1ns" --trace-fst --trace-structs --trace-underscore --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build via_pkg.sv via_core.sv --top via_core via_core_sim.cpp -o via_sim
+	verilator --Mdir sim_log $(SIM_OPTS) -Wno-CASEINCOMPLETE --cc -O3 -CFLAGS "--std=c++20 -Wall" --x-assign fast --x-initial 0 --noassert --exe --build via_pkg.sv via_core.sv --top via_core via_core_sim.cpp -o via_sim
+
 clean:
 	rm -rf $(TOP).json $(TOP).asc $(TOP).bin sim_trace sim_log obj_dir a.out
 
