@@ -83,9 +83,9 @@ module via_serial (
             sclk_toggle <= (((acr.shift_mode == 'b100 | acr.shift_mode[1:0] == 'b01) & t2l_ufl) | acr.shift_mode[1:0] == 'b10) & ~ifr.sr;
         end
 
-        if (~sr_run) begin
+        if (phi2 & ~sr_run) begin
             sclk_next <= '1;
-        end else if (sclk_toggle) begin
+        end else if (~phi2 & sclk_toggle) begin
             sclk_next <= ~sclo_cb1;
         end
 
