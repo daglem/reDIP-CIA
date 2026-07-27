@@ -142,12 +142,21 @@ module cia_io (
         spi_bm <= spi_o.bme;
     end
 
+    // The 650x/6510 PHI2 clock driver only weakly drives the clock line high.
+    // This makes the clock signal susceptible to noise at the rising edge,
+    // which could in theory cause a false detection of the falling edge.
+    // iCE40 Ultra FPGAs have a typical input hysteresis of approximately
+    // 200mV, which should hopefully be sufficient to remedy this issue.
+    // In an attempt to further aid in the avoidance of any glitches, we
+    // configure the I/O with a ~100k pullup.
+    //
     // phi2_io is configured as a simple input pin (not registered, i.e. without
     // any delay), so that the signal can be used to latch other signals,
     // which are stable until at least 10ns after the falling edge of phi2
-    // (ref. MOS6510 datasheet).
+    // (ref. MOS6500 and MOS6510 datasheets).
     SB_IO #(
-        .PIN_TYPE    (`PIN_IN_UNREG)
+        .PIN_TYPE    (`PIN_IN_UNREG),
+        .PULLUP      (1'b1)
     ) io_phi2 (
         .PACKAGE_PIN (pad_phi2),
         .D_IN_0      (phi2_io)
@@ -229,6 +238,7 @@ module cia_io (
 
     // PA0-PA7 are open drain.
     // NB! Push-pull on the MOS8520.
+    // NB! Pullups to VCC are ~3.75k in the MOS8521 and ~1.25k in the MOS8520, while external on-board pullups are ~4.7k.
     SB_IO #(
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_pa[7:0] (
@@ -245,6 +255,7 @@ module cia_io (
 
     // PB0-PB7 are push-pull.
     // NB! Open drain on the MOS8520.
+    // NB! Pullups to VCC are ~3.75k in the MOS8521 and ~1.25k in the MOS8520, while external on-board pullups are ~4.7k.
     // NB! Shared with flash pins as follows:
     //   PB7 - SCK        (SPI_SCLK)
     //   PB6 - SO         (SPI_SIO1)
@@ -271,7 +282,6 @@ module cia_io (
 
     // /PC is push-pull, output only.
     // NB! Open drain on the MOS8520.
-    // NB! Pullup to VCC on the MOS8520, which would have to be external.
     // NB! Shared with flash pin SI (SPI_SIO0).
     SB_IO #(
         .PIN_TYPE      (`PIN_IN_UNREG | `PIN_OUT_REG | `PIN_OE_REG)
@@ -286,9 +296,11 @@ module cia_io (
     );
 
     // /FLAG is input only.
-    // NB! Pullup to VCC on the MOS8520, which would have to be external.
+    // NB! Pullup to VCC is ~1.39k in the MOS8520, only weak ~100k pullup here.
+    // No pullup in the real MOS8521, but a ~100k pullup won't hurt.
     SB_IO #(
-        .PIN_TYPE     (`PIN_IN_REG)
+        .PIN_TYPE     (`PIN_IN_REG),
+        .PULLUP       (1'b1)
     ) io_flag_n (
         .PACKAGE_PIN  (pad_flag_n),
 `ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
@@ -299,9 +311,11 @@ module cia_io (
     );
 
     // TOD is input only.
-    // NB! Pullup to VCC on the MOS8520, which would have to be external.
+    // NB! Pullup to VCC is ~1.32k in the MOS8520, only weak ~100k pullup here.
+    // No pullup in the real MOS8521, but a ~100k pullup won't hurt.
     SB_IO #(
-        .PIN_TYPE     (`PIN_IN_REG)
+        .PIN_TYPE     (`PIN_IN_REG),
+        .PULLUP       (1'b1)
     ) io_tod (
         .PACKAGE_PIN  (pad_tod),
 `ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
@@ -312,8 +326,11 @@ module cia_io (
     );
 
     // CNT is open drain.
+    // NB! Pullup to VCC is ~1.25k in the MOS8520, only weak ~100k pullup here.
+    // No pullup in the real MOS8521, but a ~100k pullup won't hurt.
     SB_IO #(
-        .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
+        .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG),
+        .PULLUP        (1'b1)
     ) io_cnt (
         .PACKAGE_PIN   (pad_cnt),
 `ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
@@ -327,8 +344,11 @@ module cia_io (
     );
 
     // SP is open drain.
+    // NB! Pullup to VCC is ~1.25k in the MOS8520, only weak ~100k pullup here.
+    // No pullup in the real MOS8521, but a ~100k pullup won't hurt.
     SB_IO #(
-        .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
+        .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG),
+        .PULLUP        (1'b1)
     ) io_sp (
         .PACKAGE_PIN   (pad_sp),
 `ifdef NO_ICE40_DEFAULT_ASSIGNMENTS

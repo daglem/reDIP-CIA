@@ -126,12 +126,21 @@ module pia_io (
         cb2    <= cb2_x;
     end
 
+    // The 650x/6510 PHI2 clock driver only weakly drives the clock line high.
+    // This makes the clock signal susceptible to noise at the rising edge,
+    // which could in theory cause a false detection of the falling edge.
+    // iCE40 Ultra FPGAs have a typical input hysteresis of approximately
+    // 200mV, which should hopefully be sufficient to remedy this issue.
+    // In an attempt to further aid in the avoidance of any glitches, we
+    // configure the I/O with a ~100k pullup.
+    //
     // phi2_io is configured as a simple input pin (not registered, i.e. without
     // any delay), so that the signal can be used to latch other signals,
     // which are stable until at least 10ns after the falling edge of phi2
-    // (ref. MOS6510 datasheet).
+    // (ref. MOS6500 and MOS6510 datasheets).
     SB_IO #(
-        .PIN_TYPE    (`PIN_IN_UNREG)
+        .PIN_TYPE    (`PIN_IN_UNREG),
+        .PULLUP      (1'b1)
     ) io_phi2 (
         .PACKAGE_PIN (pad_phi2),
         .D_IN_0      (phi2_io)
@@ -232,6 +241,7 @@ module pia_io (
     // Bidirectional I/O port pins.
 
     // PA0-PA7 are open drain.
+    // NB! Pullups to VCC are ~6.4k in real chip, external on-board pullups are ~4.7k.
     SB_IO #(
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_pa[7:0] (
@@ -274,9 +284,10 @@ module pia_io (
     );
 
     // CA2 is open drain.
-    // NB! Pullup to VCC, which would have to be external.
+    // NB! Pullup to VCC is ~6k in real chip, only weak ~100k pullup here.
     SB_IO #(
-        .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
+        .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG),
+        .PULLUP        (1'b1)
     ) io_ca2 (
         .PACKAGE_PIN   (pad_ca2),
 `ifdef NO_ICE40_DEFAULT_ASSIGNMENTS
@@ -302,7 +313,6 @@ module pia_io (
     );
 
     // CB2 is push-pull.
-    // NB! Pullup to VCC, which would have to be external.
     SB_IO #(
         .PIN_TYPE      (`PIN_IN_REG | `PIN_OUT_REG | `PIN_OE_REG)
     ) io_cb2 (
