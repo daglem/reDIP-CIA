@@ -108,6 +108,7 @@ static void parse_args(int argc, char** argv) {
         case 'm':
             if      (val == "6526") cia_model = 1;
             else if (val == "8521") cia_model = 2;
+            else if (val == "8520") cia_model = 3;
             else                    goto fail;
             break;
         case 'h':

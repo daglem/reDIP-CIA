@@ -105,7 +105,7 @@ module cia_cnt (
 `endif
 
         // Counter carry input.
-        cnt_c   = tod_start & tod_up;
+        cnt_c    = tod_start & tod_up & phi20_prev;
     end
 
     always_comb begin
