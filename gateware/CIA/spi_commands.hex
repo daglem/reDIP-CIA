@@ -15,9 +15,9 @@
 // The command sequence ends when control = 0.
 
 // BRAM offset = 0:
-// 1. 03h Read Data (first byte in 4K block #31)
+// 1. 03h Read Data (first byte in 4K block #18)
 // 2. End
-14  03 01 F0 00
+14  03 01 20 00
 00
 
 // BRAM offset = 6:
@@ -25,13 +25,13 @@
 // 2. 20h Block Erase (4K block #31)
 // 3. 05h Read Status Register 1, keep reading until BUSY bit is cleared, clear erase status bit
 // 4. 06h Write Enable
-// 5. 02h Page Program (first byte in first page in 4K block #31)
+// 5. 02h Page Program (first byte in first page in 4K block #18)
 // 6. 05h Read Status Register 1, keep reading until BUSY bit is cleared, clear program status bit
 // 7. End
 01  06
-04  20 01 F0 00
+04  20 01 20 00
 D1  05
 01  06
-05  02 01 F0 00 FF  // Data byte (BRAM offset = 22) must be set to CIA model value
+05  02 01 20 00 FF  // Data byte (BRAM offset = 22) must be set to CIA model value
 B1  05
 00

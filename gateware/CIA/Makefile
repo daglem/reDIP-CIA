@@ -37,6 +37,18 @@ SRC = $(PKG) $(MOD)
 
 all: $(TOP).bin
 
+MOS6526:
+	make CIA_MODEL=MOS6526
+
+MOS8521:
+	make CIA_MODEL=MOS8521
+
+MOS8520:
+	make CIA_MODEL=MOS8520
+
+NO_MOS8520:
+	make NO_MOS8520=
+
 lint:
 	verilator --lint-only -I.. -I../cells_sim -Wall -Wno-VARHIDDEN -Wno-CASEINCOMPLETE -Wno-PROCASSINIT -Wpedantic +systemverilogext+sv $(FLG) $(PKG) $(TOP).sv --top $(TOP)
 
@@ -52,8 +64,20 @@ $(TOP).json: $(SRC) Makefile
 %.bin: %.asc
 	icepack $(ICEPACK_FLG) $< $@
 
+# Program bitstream.
 prog: $(TOP).bin
 	iceprog $<
+
+# Store configuration byte at the start of 4k block #18.
+# Skip 4k block erase (-i 4) since 2*64k blocks are erased by the "prog" target.
+prog-MOS6526: prog
+	iceprog -n -o 72k <(printf "\x01")
+
+prog-MOS8521: prog
+	iceprog -n -o 72k <(printf "\x02")
+
+prog-MOS8520: prog
+	iceprog -n -o 72k <(printf "\x03")
 
 SIM_EMULATOR ?= 0
 ifeq "$(SIM_EMULATOR)" "1"
@@ -75,4 +99,4 @@ test-config-iverilog:
 clean:
 	rm -rf $(TOP).json $(TOP).asc $(TOP).bin sim_trace sim_log obj_dir a.out
 
-.PHONY: all prog sim clean
+.PHONY: all MOS6526 MOS8521 MOS8520 prog prog-MOS6526 prog-MOS8521 prog-MOS8520 sim clean

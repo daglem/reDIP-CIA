@@ -14,24 +14,33 @@ By default, emulation of MOS 6526/8521 and MOS 8520 CIA chips is configurable
 via [software](/software/), initially
 configured as MOS 8521.
 
-The emulation can also be locked down at build time via one of
+The emulation can alternatively be locked down at build time via one of
 
-* `make CIA_MODEL=MOS6526`
-* `make CIA_MODEL=MOS8521`
-* `make CIA_MODEL=MOS8520`
+* `make MOS6526`
+* `make MOS8521`
+* `make MOS8520`
 
 With projects in mind which use the reDIP CIA core gateware as part of a larger
 whole to emulate the Commmodore 64, there is also an option to disable code for
-the MOS 8520 (which is used in Commodore Amiga machines). This frees up some
-FPGA resources:
+the MOS 8520 (used in Commodore Amiga computers and 1581 disk drives). This
+frees up some FPGA resources:
 
-* `make NO_MOS8520=`
+* `make NO_MOS8520`
 
 ## Installation
 
-The gateware is built via `make` and may be installed on the reDIP CIA hardware
-e.g. via `make prog` using an
+The gateware is built via `make` (see above) and may be installed on the reDIP
+CIA hardware e.g. using an
 [FTDI cable](https://ftdichip.com/products/c232hm-ddhsl-0-2/).
+
+The gateware can be installed via `make prog`, which programs the on-board
+flash chip via `iceprog`. Note that this makes configurable gateware generated
+by `make` or `make NO_MOS8520` default to MOS 8521. The default can
+alternatively be specified via one of
+
+* `make prog-MOS6526`  # C64, SX-64, Ultimax
+* `make prog-MOS8521`  # C64, C128, 1570, 1571
+* `make prog-MOS8520`  # Amiga, 1581
 
 ## License
 
