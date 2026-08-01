@@ -230,8 +230,8 @@ module pia_ports (
         ports_o.ddrcb2 = crb.c2_mode[2];
 
         // IRQ and IRQ enable.
-        irqa_n = (cra.irq1 & cra.c1_mode[0]) | (cra.irq2 & cra.c2_mode[0]);
-        irqb_n = (crb.irq1 & crb.c1_mode[0]) | (crb.irq2 & crb.c2_mode[0]);
+        irqa_n = ~((cra.irq1 & cra.c1_mode[0]) | (cra.irq2 & cra.c2_mode[0]));
+        irqb_n = ~((crb.irq1 & crb.c1_mode[0]) | (crb.irq2 & crb.c2_mode[0]));
     end
 
     // Register outputs.
