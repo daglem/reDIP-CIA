@@ -42,7 +42,8 @@ module via_timers (
     logic t1_pb7_prev;
     logic s_t1, s_t1_prev;
 
-    via::reg16_t t1_latch, t1_count, t1_count_prev;
+    // NB! T1 powerup values are not deterministic, however all ones is a common value.
+    via::reg16_t t1_latch = '1, t1_count = '1, t1_count_prev;
 
     // Timer 2.
     logic w_t2ch;
@@ -54,8 +55,9 @@ module via_timers (
     logic t2_pb6_reg, t2_pb6_last, t2_pb6_prev;
     logic s_t2, s_t2_prev;
 
-    via::reg8_t  t2l_latch;
-    via::reg16_t t2_count, t2_count_prev, t2_count_next;
+    // NB! T2 powerup values are not deterministic, however all ones is a common value.
+    via::reg8_t  t2l_latch = '1;
+    via::reg16_t t2_count = '1, t2_count_prev, t2_count_next;
 
     // Register writes.
     always_ff @(posedge clk) begin

@@ -31,7 +31,7 @@ module via_serial (
     input  logic        scli_cb1,
     input  logic        si_cb2,
     output via::sflag_t sflag_o,
-    output via::reg8_t  sr,
+    output via::reg8_t  sr = '1,  // NB! The SR powerup value is not deterministic.
     output logic        sclo_cb1,
     output logic        so_cb2
 );
