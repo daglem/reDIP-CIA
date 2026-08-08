@@ -146,7 +146,7 @@ module via_ports (
         // Port inputs - IRA / IRB.
         regs.pra  = pa_in;
         // Read Port B outputs back in.
-        regs.prb  = (~ports_o.ddrb & pb_in) | (ports_o.ddrb & oregs.prb);
+        regs.prb  = (~ports_o.ddrb & pb_in) | (ports_o.ddrb & ports_o.pb);
 
         regs.ddra = oregs.ddra;
         regs.ddrb = oregs.ddrb;

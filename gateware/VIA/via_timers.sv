@@ -155,8 +155,8 @@ module via_timers (
             t1_pb7 <= '0;
         end else if (~acr.t1_pb7_out) begin
             t1_pb7 <= '1;
-        end else begin
-            t1_pb7 <= (phi2 & t1_run & t1_ufl) | ~t1_pb7_prev;
+        end else if (phi2 & t1_run & t1_ufl) begin
+            t1_pb7 <= ~t1_pb7_prev;
         end
 
         // Timer 2.
