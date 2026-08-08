@@ -35,7 +35,7 @@ module via_timers (
 );
 
     // Timer 1.
-    logic w_t1ch;
+    logic w_t1c_h;
     logic t1_load;
     logic t1_ufl, t1_ufl_prev;
     logic t1_run;
@@ -46,7 +46,7 @@ module via_timers (
     via::reg16_t t1_latch = '1, t1_count = '1, t1_count_prev;
 
     // Timer 2.
-    logic w_t2ch;
+    logic w_t2c_h;
     logic t2_cin;
     logic t2l_load;
     logic t2l_ufl_prev;
@@ -80,7 +80,7 @@ module via_timers (
         // Load / count.
         if (~phi2) begin
             t1_count <= t1_load ? t1_latch : t1_count_prev - 1'b1;
-            t1_ufl   <= ~|t1_count_prev & ~w_t1ch;
+            t1_ufl   <= ~|t1_count_prev & ~w_t1c_h;
         end
 
         if (phi2) begin
@@ -103,9 +103,9 @@ module via_timers (
         // Load / count.
         if (~phi2) begin
             t2_count[ 7:0] <= t2l_load ? t2l_latch : t2_count_next[ 7:0];
-            t2_count[15:8] <= w_t2ch   ? data      : t2_count_next[15:8];
-            t2h_ufl        <= ~|t2_count_prev & ~w_t2ch;
-            t2l_ufl        <= ~|t2_count_prev[7:0] & ~t2l_load;
+            t2_count[15:8] <= w_t2c_h  ? data      : t2_count_next[15:8];
+            t2h_ufl        <= ~|t2_count_prev      & t2_cin & ~w_t2c_h;
+            t2l_ufl        <= ~|t2_count_prev[7:0] & t2_cin & ~t2l_load;
         end
 
         if (phi2) begin
@@ -117,14 +117,14 @@ module via_timers (
 
     always_comb begin
         // Timer 1.
-        w_t1ch  = we && addr == 'h5;
+        w_t1c_h  = we && addr == 'h5;
         // Load: Timer 1 underflow or write to T1C-H.
-        t1_load = t1_ufl_prev | w_t1ch;
+        t1_load  = t1_ufl_prev | w_t1c_h;
 
         // Timer 2.
-        w_t2ch   = we && addr == 'h9;
+        w_t2c_h  = we && addr == 'h9;
         // Load: Timer 2 underflow and shift rate controlled by Timer 2, or write to T2C-H.
-        t2l_load = (t2l_ufl_prev && (acr.shift_mode == 'b100 || acr.shift_mode[1:0] == 'b01)) | w_t2ch;
+        t2l_load = (t2l_ufl_prev && (acr.shift_mode == 'b100 || acr.shift_mode[1:0] == 'b01)) | w_t2c_h;
 
         t2_count_next = t2_count_prev - t2_cin;
     end
@@ -133,7 +133,7 @@ module via_timers (
     always_ff @(posedge clk) begin
         // Timer 1.
 
-        if (w_t1ch) begin
+        if (w_t1c_h) begin
             t1_run <= '1;
         end else if (res | (s_t1_prev & ~acr.t1_free_run)) begin
             t1_run <= '0;
@@ -149,7 +149,7 @@ module via_timers (
         end
 
         // Timer 1 output.
-        if (w_t1ch) begin
+        if (w_t1c_h) begin
             t1_pb7 <= '0;
         end else if (~acr.t1_pb7_out) begin
             t1_pb7 <= '1;
@@ -159,7 +159,7 @@ module via_timers (
 
         // Timer 2.
 
-        if (w_t2ch) begin
+        if (w_t2c_h) begin
             t2_run <= '1;
         end else if (res | s_t2_prev) begin
             t2_run <= '0;
@@ -178,11 +178,11 @@ module via_timers (
     always_comb begin
         // Timer 1.
         tflag_o.s_t1 = s_t1;
-        tflag_o.r_t1 = (rd && addr == 'h4) || w_t1ch;  // Read from T1C-L or write to T1C-H
+        tflag_o.r_t1 = (rd && addr == 'h4) || w_t1c_h;  // Read from T1C-L or write to T1C-H
 
         // Timer 2.
         tflag_o.s_t2 = s_t2;
-        tflag_o.r_t2 = (rd && addr == 'h8) || w_t2ch;  // Read from T2C-L or write to T2C-H
+        tflag_o.r_t2 = (rd && addr == 'h8) || w_t2c_h;  // Read from T2C-L or write to T2C-H
     end
 
     // Register outputs.
