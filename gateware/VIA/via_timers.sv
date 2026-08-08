@@ -36,6 +36,7 @@ module via_timers (
 
     // Timer 1.
     logic w_t1c_h;
+    logic w_t1l_h;
     logic t1_load;
     logic t1_ufl, t1_ufl_prev;
     logic t1_run;
@@ -118,6 +119,7 @@ module via_timers (
     always_comb begin
         // Timer 1.
         w_t1c_h  = we && addr == 'h5;
+        w_t1l_h  = we && addr == 'h7;
         // Load: Timer 1 underflow or write to T1C-H.
         t1_load  = t1_ufl_prev | w_t1c_h;
 
@@ -178,7 +180,7 @@ module via_timers (
     always_comb begin
         // Timer 1.
         tflag_o.s_t1 = s_t1;
-        tflag_o.r_t1 = (rd && addr == 'h4) || w_t1c_h;  // Read from T1C-L or write to T1C-H
+        tflag_o.r_t1 = (rd && addr == 'h4) || w_t1c_h || w_t1l_h;  // Read from T1C-L or write to T1C-H/T1L-H
 
         // Timer 2.
         tflag_o.s_t2 = s_t2;
