@@ -30,11 +30,14 @@ module via_interrupt (
     output logic        irq_n
 );
 
+    logic       w_ifr;
     via::reg7_t flags;  // IFR bit 6:0
     via::reg7_t mask;   // IER bit 6:0
     via::reg7_t r, s;   // Reset or set flag
 
     always_comb begin
+        w_ifr = we && addr == 'hd;
+
         // Reset signals for interrupt flags.
         r = {
             tflag.r_t1,
@@ -75,7 +78,7 @@ module via_interrupt (
 
         // Reset or set interrupt flags.
         for (int i = 0; i < $bits(r); i++) begin
-            if (r[i]) begin
+            if (r[i] | res | (w_ifr & data[i])) begin
                 flags[i] <= '0;
             end else if (s[i]) begin
                 flags[i] <= '1;
