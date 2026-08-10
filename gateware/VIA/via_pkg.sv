@@ -51,11 +51,11 @@ package via;
         reg8_t pa;
         reg8_t ddrb;
         reg8_t ddra;
-        logic  cb1;
         logic  cb2;
+        logic  cb1;
         logic  ca2;
-        logic  ddrcb1;
         logic  ddrcb2;
+        logic  ddrcb1;
     } pout_t;
 
     // Port interrupt flags.

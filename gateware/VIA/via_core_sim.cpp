@@ -189,7 +189,9 @@ static array<string, 5> in_pins = { "CA1", "CA2", "CB1", "CB2", "RES" };
 static array<string, 4> out_pins = { "IRQ", "CA2", "CB1", "CB2" };
 
 static void write_pin(Vvia_core* core, int ix_pin, int& val) {
-    val = (core->bus_o >> ix_pin) & 1;
+    // irq_n, (skip ddrcb1 and ddrcb2), ca2, cb1, cb2
+    int o = ix_pin == 0 ? ix_pin : ix_pin + 2;
+    val = (core->bus_o >> o) & 1;
 }
 
 static void read_pin(Vvia_core* core, int ix_pin, int val) {
@@ -202,8 +204,8 @@ static void read_pin(Vvia_core* core, int ix_pin, int val) {
             val = ((core->bus_o >> o) & 1) & val;
         } else if (ix_pin == 2 || ix_pin == 3) {  // CB1 or CB2
             // Read output back in, otherwise input.
-            uint8_t ddr = (core->bus_o >> (o - 3));
-            val = (((core->bus_o >> o) & ddr) | (val & ~ddr)) & 1;
+            uint8_t ddr = (core->bus_o >> (o - 3)) & 1;
+            val = ((core->bus_o >> o) & ddr) | (val & (~ddr & 1));
         }
         core->bus_i = (core->bus_i & ~(1LL << ix_pin)) | (uint64_t(val) << ix_pin);
     }

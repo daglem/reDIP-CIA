@@ -44,6 +44,7 @@ module via_serial (
     logic sclk_reg, sclk_prev;
     logic sclk_edge;
     logic sclk_toggle;
+    logic sclk_latch;
     logic sclk_next;
 
     via::reg8_t sr_latch;
@@ -70,6 +71,11 @@ module via_serial (
         end
     end
 
+    // Shift clock.
+    always_comb begin
+        sclk_next = sclk_latch | ~sr_run;
+    end
+
     // Shift count.
     always_ff @(posedge clk) begin
         if (sflag_o.r_sr) begin
@@ -78,19 +84,16 @@ module via_serial (
             sr_run <= '0;
         end
 
-        if (~phi2) begin
+        if (phi2) begin
             // Timer 2 rate or PHI2 rate.
             sclk_toggle <= (((acr.shift_mode == 'b100 | acr.shift_mode[1:0] == 'b01) & t2l_ufl) | acr.shift_mode[1:0] == 'b10) & ~ifr.sr;
         end
 
-        if (phi2 & ~sr_run) begin
-            sclk_next <= '1;
-        end else if (~phi2 & sclk_toggle) begin
-            sclk_next <= ~sclo_cb1;
-        end
-
         if (phi2) begin
-            sclo_cb1 <= sclk_next;
+            sclk_latch <= sclk_next;
+            sclo_cb1   <= sclk_next;
+        end else if (~phi2 & sclk_toggle) begin
+            sclk_latch <= ~sclo_cb1;
         end
 
         if (~sr_run) begin
