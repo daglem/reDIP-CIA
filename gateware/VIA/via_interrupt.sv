@@ -47,7 +47,7 @@ module via_interrupt (
             sflag.r_sr,
             pflag.r_ca1,
             pflag.r_ca2
-        } | ({ 7'(we) } & data[6:0]);
+        };
 
         // Set signals for interrupt flags.
         s = {
