@@ -36,6 +36,7 @@ module via_core (
 
     logic res;      // Reset signal
     logic rd;       // Read enable
+    logic rd_phi2;
     logic we;       // Write enable
     logic we_phi2;
 
@@ -57,7 +58,7 @@ module via_core (
     always_comb begin
         // Reads are performed during PHI2, while writes are performed during
         // the following PHI1.
-        rd = bus_i.phi2 & cs & r_w_n & ~res;
+        rd = rd_phi2 &  bus_i.phi2;
         we = we_phi2 & ~bus_i.phi2;
 
         // Output addressed value.
@@ -79,6 +80,10 @@ module via_core (
             addr <= addr_phi1;
             data <= bus_i.data;
         end
+
+        // Register rd to synchronize with addr at the start of phi2, avoiding
+        // spurious use of previous addr value.
+        rd_phi2 <= bus_i.phi2 & cs & r_w_n & ~res;
 
         // Interestingly, write enable is not reset if CS is kept active into
         // the next cycle.
