@@ -33,7 +33,9 @@ module pia_core (
     logic res;  // Reset signal
     logic cs;   // Chip select
     logic rd;   // Read enable
+    logic rd_phi2;
     logic we;   // Write enable
+    logic we_phi2;
 
     // Signals latched on PHI2=0.
     // Address lines are not latched for reads in the real MOS 6520 chip,
@@ -50,24 +52,29 @@ module pia_core (
 
         // Reads are performed during PHI2, while writes are performed during
         // the following PHI1.
-        rd = bus_i.phi2 & cs & bus_i.r_w_n & ~res;
+        rd = rd_phi2 &  bus_i.phi2;
+        we = we_phi2 & ~bus_i.phi2;
 
         // Output addressed value.
         bus_o.data = regs[{ ~addr, 3'b000 } +: 8];
     end
 
     always_ff @(posedge clk) begin
-        // Interestingly, write enable is not reset if CS is kept active into
-        // the next cycle.
-        if ((bus_i.phi2 & ~cs) | res) begin
-            we <= '0;
-        end else if (bus_i.phi2 & cs & ~bus_i.r_w_n) begin
-            we <= '1;
-        end
-
         if (bus_i.phi2) begin
             addr <= bus_i.addr;
             data <= bus_i.data;
+        end
+
+        // Register rd to synchronize with addr at the start of phi2, avoiding
+        // spurious use of previous addr value.
+        rd_phi2 <= bus_i.phi2 & cs & bus_i.r_w_n & ~res;
+
+        // Interestingly, write enable is not reset if CS is kept active into
+        // the next cycle.
+        if ((bus_i.phi2 & ~cs) | res) begin
+            we_phi2 <= '0;
+        end else if (bus_i.phi2 & cs & ~bus_i.r_w_n) begin
+            we_phi2 <= '1;
         end
 
         // Combine FPGA and PIA bus resets.
