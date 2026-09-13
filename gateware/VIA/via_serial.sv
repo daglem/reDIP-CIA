@@ -109,7 +109,7 @@ module via_serial (
     end
 
     always_comb begin
-        sr_done = sr_cnt_latch[2] & sr_cnt1_0;
+        sr_done = sr_cnt_latch[2] & sr_cnt1_0 & acr.shift_mode != 'b100;
     end
 
     // Serial clock input edge detector.
