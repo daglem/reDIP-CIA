@@ -39,7 +39,6 @@ module via_serial (
     logic sr_run;
     logic sr_in;
     logic sr_shift;
-    logic sr_cnt1_0;
     logic sr_done;
     logic sclk_reg, sclk_prev;
     logic sclk_edge;
@@ -48,7 +47,7 @@ module via_serial (
     logic sclk_next;
 
     via::reg8_t sr_latch;
-    via::reg5_t sr_cnt, sr_cnt_latch;  // 5 bit ring counter, counting 8 bit shifts
+    via::reg5_t sr_cnt, sr_cnt_latch;  // 5 bit Johnson counter, counting 8 bit shifts
 
     // Register write / shift.
     always_comb begin
@@ -89,6 +88,7 @@ module via_serial (
             sclk_toggle <= (((acr.shift_mode == 'b100 | acr.shift_mode[1:0] == 'b01) & t2l_ufl) | acr.shift_mode[1:0] == 'b10) & ~ifr.sr;
         end
 
+        // Output clock generator.
         if (phi2) begin
             sclk_latch <= sclk_next;
             sclo_cb1   <= sclk_next;
@@ -97,19 +97,18 @@ module via_serial (
         end
 
         if (~sr_run) begin
+            // Reset Johnson counter.
             sr_cnt_latch <= '1;
         end else if (~(we && asel_sr) & ~phi2) begin
+            // Shift Johnson counter.
             sr_cnt_latch <= sr_shift ? { ~sr_cnt[0], sr_cnt[4:1] } : sr_cnt;
         end
 
         if (phi2) begin
-            sr_cnt    <= sr_cnt_latch;
-            sr_cnt1_0 <= ~(sr_cnt_latch[1] | sflag_o.s_sr);
+            // Update Johnson counter.
+            sr_cnt  <= sr_cnt_latch;
+            sr_done <= sr_cnt_latch[2] & ~sr_cnt_latch[1];
         end
-    end
-
-    always_comb begin
-        sr_done = sr_cnt_latch[2] & sr_cnt1_0 & acr.shift_mode != 'b100;
     end
 
     // Serial clock input edge detector.
@@ -142,8 +141,8 @@ module via_serial (
     end
 
     always_comb begin
-        // External clock or clock out, and count finished.
-        sflag_o.s_sr = (acr.shift_mode[1:0] == 'b11 | sclo_cb1) & sr_done;
+        // Count finished, not in T2 free-running mode, and external clock mode or clock out high.
+        sflag_o.s_sr = sr_done & acr.shift_mode != 'b100 & (acr.shift_mode[1:0] == 'b11 | sclo_cb1);
         // Read or write of SR.
         sflag_o.r_sr = (rd | we) & asel_sr;
     end
