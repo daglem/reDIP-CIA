@@ -59,9 +59,12 @@ The gateware implementations would not have been possible without the
 [outstanding work](https://6502.org/forum/viewtopic.php?t=7427) on varius MOS
 chips by Frank "androSID" Wolf and Dieter "ttlworks" Müller.
 
-Thanks to André Fachat for testing the VIA and PIA implementations with his
-Commodore PET test suite at https://github.com/fachat/pet_viapia_tests
+Wagner Rodriguez has tested the 8520 CIA implementation with the [Versatile
+Amiga Testprogram](https://aminet.net/package/util/misc/VATestprogram).
 
-Thanks also to Wagner Rodriguez for testing the 8520 CIA implementation with
-the Versatile Amiga Testprogram at
-https://aminet.net/package/util/misc/VATestprogram
+Mateusz Nalewajski has hunted down and fixed two bugs while working on
+integrating the VIA gateware in
+[icepi-zero-c64](https://github.com/m1nl/icepi-zero-c64).
+
+André Fachat has tested the VIA and PIA implementations with his [PET PIA and
+VIA test suite](https://github.com/fachat/pet_viapia_tests).
