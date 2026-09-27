@@ -10,6 +10,9 @@ The gateware implementation is based on the excellent schematics of the
 [MOS 8521](https://6502.org/forum/viewtopic.php?f=4&t=7418) chips provided by
 Frank "androSID" Wolf and Dieter "ttlworks" Müller.
 
+Please note that the internal pullups for CNT, /FLAG, SP, and TOD in a real
+8520 chip are only emulated by weak ~100k internal FPGA pullups.
+
 By default, emulation of MOS 6526/8521 and MOS 8520 CIA chips is configurable
 via [software](/software/), initially
 configured as MOS 8521.

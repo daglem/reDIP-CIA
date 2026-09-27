@@ -9,7 +9,8 @@ The gateware implementation is based on the excellent schematics of the
 [MOS 6522](https://6502.org/forum/viewtopic.php?f=4&t=7241) chip provided by
 Frank "androSID" Wolf and Dieter "ttlworks" Müller.
 
-Please note that this is currently completely untested!
+Please note that the internal pullups for CA2, CB1, and CB2 in a real VIA chip
+are only emulated by weak ~100k internal FPGA pullups.
 
 ## Installation
 

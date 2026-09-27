@@ -46,17 +46,22 @@ implemented in [gateware](gateware/CIA/), configurable via [software](software/)
 ## MOS 6522 VIA compatibility
 
 Cycle accurate emulation of the MOS 6522 VIA chip has been implemented in
-[gateware](gateware/VIA/). Please note that this is currently completely
-untested!
+[gateware](gateware/VIA/).
 
 ## MOS 6520 PIA compatibility
 
 Cycle accurate emulation of the MOS 6520 VIA chip has been implemented in
-[gateware](gateware/PIA/). Please note that this is currently completely
-untested!
+[gateware](gateware/PIA/).
 
 ## Thanks
 
 The gateware implementations would not have been possible without the
 [outstanding work](https://6502.org/forum/viewtopic.php?t=7427) on varius MOS
 chips by Frank "androSID" Wolf and Dieter "ttlworks" Müller.
+
+Thanks to André Fachat for testing the VIA and PIA implementations with his
+Commodore PET test suite at https://github.com/fachat/pet_viapia_tests
+
+Thanks also to Wagner Rodriguez for testing the 8520 CIA implementation with
+the Versatile Amiga Testprogram at
+https://aminet.net/package/util/misc/VATestprogram

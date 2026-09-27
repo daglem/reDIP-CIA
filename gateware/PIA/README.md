@@ -9,7 +9,8 @@ The gateware implementation is based on the excellent schematics of the
 [MOS 6520](https://6502.org/forum/viewtopic.php?f=4&t=7425) chip provided by
 Frank "androSID" Wolf and Dieter "ttlworks" Müller.
 
-Please note that this is currently completely untested!
+Please note that the internal pullup for CA2 in a real PIA chip is only
+emulated by a weak ~100k internal FPGA pullup.
 
 ## Installation
 
